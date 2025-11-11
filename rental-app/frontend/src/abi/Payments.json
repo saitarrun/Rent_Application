@@ -1,0 +1,27 @@
+[
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "leaseId", "type": "uint256" },
+      { "internalType": "uint256", "name": "periodStartUnix", "type": "uint256" },
+      { "internalType": "uint256", "name": "periodEndUnix", "type": "uint256" },
+      { "internalType": "uint256", "name": "expectedWei", "type": "uint256" }
+    ],
+    "name": "payRent",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "leaseId", "type": "uint256" },
+      { "indexed": true, "internalType": "address", "name": "tenant", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "periodStart", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "periodEnd", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "amountWei", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "paidAt", "type": "uint256" }
+    ],
+    "name": "RentPaid",
+    "type": "event"
+  }
+]

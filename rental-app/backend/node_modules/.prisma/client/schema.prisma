@@ -1,0 +1,110 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id             String     @id @default(cuid())
+  email          String     @unique
+  ethAddr        String?    @unique
+  loginNonce     String?
+  role           String
+  properties     Property[] @relation("ownerProperties")
+  leasesAsOwner  Lease[]    @relation("ownerLeases")
+  leasesAsTenant Lease[]    @relation("tenantLeases")
+}
+
+model Property {
+  id      String  @id @default(cuid())
+  ownerId String
+  owner   User    @relation("ownerProperties", fields: [ownerId], references: [id])
+  name    String
+  address String
+  leases  Lease[]
+}
+
+model Lease {
+  id                 String    @id @default(cuid())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  propertyId         String
+  property           Property  @relation(fields: [propertyId], references: [id])
+  ownerId            String
+  owner              User      @relation("ownerLeases", fields: [ownerId], references: [id])
+  tenantId           String
+  tenant             User      @relation("tenantLeases", fields: [tenantId], references: [id])
+  tenantEth          String
+  ownerSignedAt      DateTime?
+  tenantSignedAt     DateTime?
+  startISO           String
+  endISO             String
+  dueDay             Int
+  monthlyRentEth     Decimal
+  securityDepositEth Decimal
+  notes              String?
+  chainId            String?
+  txHash             String?
+  termsHash          String?
+  pdfPath            String?
+  status             String    @default("pending")
+  invoices           Invoice[]
+  receipts           Receipt[]
+  repairs            Repair[]
+}
+
+model Invoice {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  leaseId        String
+  lease          Lease    @relation(fields: [leaseId], references: [id])
+  periodStartISO String
+  periodEndISO   String
+  dueISO         String
+  amountEth      Decimal
+  lateFeeEth     Decimal  @default("0")
+  status         String   @default("unpaid")
+  chainId        String?
+  txHash         String?
+  Receipt        Receipt?
+}
+
+model Receipt {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  leaseId   String
+  lease     Lease    @relation(fields: [leaseId], references: [id])
+  invoiceId String   @unique
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  paidEth   Decimal
+  paidAtISO String
+  chainId   String
+  txHash    String
+  pdfPath   String?
+}
+
+model Repair {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  leaseId    String
+  lease      Lease    @relation(fields: [leaseId], references: [id])
+  title      String
+  detail     String
+  priority   String
+  status     String   @default("open")
+  photosPath String?
+}
+
+model Profile {
+  id           Int      @id @default(1)
+  name         String
+  contact      String
+  graceDays    Int      @default(3)
+  lateFeeType  String   @default("fixed")
+  lateFeeValue Decimal  @default("0")
+  updatedAt    DateTime @updatedAt
+}
