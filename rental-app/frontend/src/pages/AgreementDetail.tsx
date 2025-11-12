@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { useState } from 'react';
-import { fetchLease, createRepair, signLease } from '../lib/api';
+import { fetchLease, createRepair, signLease, toggleAutopay } from '../lib/api';
 import PaymentsTable from '../components/PaymentsTable';
 import RepairsTable from '../components/RepairsTable';
 import { useAppStore } from '../store/useAppStore';
@@ -13,7 +13,7 @@ export default function AgreementDetail() {
   const role = useAppStore((state) => state.user?.role);
   const pushNotice = useAppStore((state) => state.pushNotice);
   const [tab, setTab] = useState<'payments' | 'repairs'>('payments');
-  const [form, setForm] = useState({ title: '', detail: '', priority: 'normal' });
+  const [form, setForm] = useState({ title: '', detail: '', priority: 'normal', category: 'general', preferredWindow: '' });
 
   const { data: lease, isLoading } = useQuery({
     queryKey: ['lease', id],
@@ -25,11 +25,21 @@ export default function AgreementDetail() {
     mutationFn: () => createRepair(id!, form),
     onSuccess: () => {
       pushNotice('success', 'Repair submitted');
-      setForm({ title: '', detail: '', priority: 'normal' });
+      setForm({ title: '', detail: '', priority: 'normal', category: 'general', preferredWindow: '' });
       queryClient.invalidateQueries({ queryKey: ['lease', id] });
       queryClient.invalidateQueries({ queryKey: ['leases'] });
     },
     onError: (err: any) => pushNotice('error', err.message || 'Unable to submit repair')
+  });
+
+  const autopayMutation = useMutation({
+    mutationFn: (autopay: boolean) => toggleAutopay(id!, autopay),
+    onSuccess: () => {
+      pushNotice('success', 'Autopay preference saved');
+      queryClient.invalidateQueries({ queryKey: ['lease', id] });
+      queryClient.invalidateQueries({ queryKey: ['leases'] });
+    },
+    onError: (err: any) => pushNotice('error', err.response?.data?.message || 'Unable to update autopay')
   });
 
   const signMutation = useMutation({
@@ -101,6 +111,21 @@ export default function AgreementDetail() {
           <p className="text-slate-500">Owner signature</p>
           <p className="font-medium">{lease.ownerSignedAt ? lease.ownerSignedAt.slice(0, 10) : 'Pending'}</p>
         </div>
+        {role === 'tenant' && (
+          <div className="col-span-2 flex items-center justify-between border-t pt-3">
+            <div>
+              <p className="text-slate-500 text-sm">Autopay</p>
+              <p className="text-xs text-slate-500">Enable reminders and one-click payments each cycle.</p>
+            </div>
+            <button
+              className={`px-4 py-2 rounded ${lease.autopayEnabled ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}
+              onClick={() => autopayMutation.mutate(!lease.autopayEnabled)}
+              disabled={autopayMutation.isPending}
+            >
+              {lease.autopayEnabled ? 'On' : 'Off'}
+            </button>
+          </div>
+        )}
       </div>
       <div>
         <div className="flex gap-2 border-b">
@@ -143,6 +168,16 @@ export default function AgreementDetail() {
                   />
                   <select
                     className="border rounded px-3 py-2"
+                    value={form.category}
+                    onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value }))}
+                  >
+                    <option value="general">General</option>
+                    <option value="plumbing">Plumbing</option>
+                    <option value="electrical">Electrical</option>
+                    <option value="appliance">Appliance</option>
+                  </select>
+                  <select
+                    className="border rounded px-3 py-2"
                     value={form.priority}
                     onChange={(e) => setForm((prev) => ({ ...prev, priority: e.target.value }))}
                   >
@@ -150,6 +185,12 @@ export default function AgreementDetail() {
                     <option value="normal">Normal</option>
                     <option value="high">High</option>
                   </select>
+                  <input
+                    className="border rounded px-3 py-2"
+                    placeholder="Preferred window (optional)"
+                    value={form.preferredWindow}
+                    onChange={(e) => setForm((prev) => ({ ...prev, preferredWindow: e.target.value }))}
+                  />
                   <button type="submit" className="bg-slate-900 text-white rounded px-4 py-2" disabled={repairMutation.isPending}>
                     Open request
                   </button>

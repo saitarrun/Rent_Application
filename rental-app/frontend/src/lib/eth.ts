@@ -5,12 +5,12 @@ import type { Environment } from '../store/useAppStore';
 
 let contractsCache: Record<string, any> | null = null;
 
-async function loadContracts() {
+async function loadContracts(): Promise<Record<string, any>> {
   if (contractsCache) return contractsCache;
   const res = await fetch('/contracts.json');
   if (!res.ok) throw new Error('contracts.json unavailable');
   contractsCache = await res.json();
-  return contractsCache;
+  return contractsCache!;
 }
 
 export async function ensureNetwork(env: Environment) {

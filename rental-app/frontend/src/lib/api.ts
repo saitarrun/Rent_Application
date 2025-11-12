@@ -91,3 +91,33 @@ export async function signLease(leaseId: string) {
   const { data } = await api.post(`/leases/${leaseId}/sign`, {});
   return data;
 }
+
+export async function toggleAutopay(leaseId: string, autopay: boolean) {
+  const { data } = await api.patch(`/leases/${leaseId}/autopay`, { autopay });
+  return data;
+}
+
+export async function fetchListings(params?: { city?: string; available?: boolean }) {
+  const { data } = await api.get('/listings', { params });
+  return data;
+}
+
+export async function refreshListings() {
+  const { data } = await api.post('/listings/refresh', {});
+  return data;
+}
+
+export async function submitApplication(payload: { listingId: string; message?: string; phone?: string }) {
+  const { data } = await api.post('/applications', payload);
+  return data;
+}
+
+export async function fetchApplications() {
+  const { data } = await api.get('/applications');
+  return data;
+}
+
+export async function updateApplicationStatus(id: string, status: string) {
+  const { data } = await api.patch(`/applications/${id}`, { status });
+  return data;
+}

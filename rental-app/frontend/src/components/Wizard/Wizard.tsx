@@ -30,7 +30,7 @@ const steps: StepDef[] = [
 
 export default function Wizard({ onSubmit }: WizardProps) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [draft, setDraft] = useState<Partial<LeaseWizardData>>({ role: 'owner', dueDay: 1 });
+  const [draft, setDraft] = useState<Partial<LeaseWizardData>>({ dueDay: 1 });
   const [submitting, setSubmitting] = useState(false);
 
   const CurrentStep = steps[stepIndex].component;

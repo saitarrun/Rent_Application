@@ -2,12 +2,6 @@ import { NavLink } from 'react-router-dom';
 import { useAppStore, type Environment } from '../store/useAppStore';
 import { ensureNetwork } from '../lib/eth';
 
-const baseLinks = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/agreements', label: 'Agreements' },
-  { to: '/settings', label: 'Settings' }
-];
-
 export default function Navbar() {
   const user = useAppStore((state) => state.user);
   const wallet = useAppStore((state) => state.wallet);
@@ -16,7 +10,18 @@ export default function Navbar() {
   const pushNotice = useAppStore((state) => state.pushNotice);
   const logout = useAppStore((state) => state.logout);
 
-  const links = user?.role === 'owner' ? [...baseLinks, { to: '/create', label: 'Create lease' }] : baseLinks;
+  if (!user) return null;
+
+  const links = [
+    { to: '/', label: 'Dashboard' },
+    { to: '/listings', label: user.role === 'owner' ? 'Listings' : 'Browse' },
+    { to: '/applications', label: 'Applications' },
+    { to: '/agreements', label: 'Agreements' },
+    { to: '/settings', label: 'Settings' }
+  ];
+  if (user.role === 'owner') {
+    links.splice(4, 0, { to: '/create', label: 'Create lease' });
+  }
 
   const handleEnvChange = async (value: Environment) => {
     setEnvironment(value);
@@ -27,8 +32,6 @@ export default function Navbar() {
       pushNotice('error', err.message || 'Wallet switch failed');
     }
   };
-
-  if (!user) return null;
 
   return (
     <header className="bg-white border-b">

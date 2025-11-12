@@ -11,6 +11,8 @@ import propertiesRouter from './routes/properties';
 import invoicesRouter from './routes/invoices';
 import receiptsRouter from './routes/receipts';
 import repairsRouter from './routes/repairs';
+import listingsRouter from './routes/listings';
+import applicationsRouter from './routes/applications';
 import { requireAuth } from './middleware/auth';
 
 dotenv.config();
@@ -30,6 +32,8 @@ app.use('/api/leases', requireAuth, leasesRouter);
 app.use('/api/invoices', requireAuth, invoicesRouter);
 app.use('/api/receipts', requireAuth, receiptsRouter);
 app.use('/api/repairs', requireAuth, repairsRouter);
+app.use('/api/listings', requireAuth, listingsRouter);
+app.use('/api/applications', requireAuth, applicationsRouter);
 
 app.get('/', (_req, res) => {
   res.json({ status: 'ok', message: 'Rental API is running. Use /api/* endpoints.' });

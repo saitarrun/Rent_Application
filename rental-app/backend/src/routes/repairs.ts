@@ -5,7 +5,9 @@ import prisma from '../lib/prisma';
 const router = Router();
 
 const updateSchema = z.object({
-  status: z.enum(['open', 'in_progress', 'resolved', 'closed'])
+  status: z.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
+  scheduledAt: z.string().optional(),
+  assignedTo: z.string().optional()
 });
 
 router.patch('/:id', async (req, res) => {
@@ -17,7 +19,14 @@ router.patch('/:id', async (req, res) => {
   if (req.auth?.userId !== repair.lease.ownerId) return res.status(403).json({ message: 'Only owner can update repair' });
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error.flatten());
-  const updated = await prisma.repair.update({ where: { id: repair.id }, data: { status: parsed.data.status } });
+  const updated = await prisma.repair.update({
+    where: { id: repair.id },
+    data: {
+      status: parsed.data.status ?? repair.status,
+      scheduledAt: parsed.data.scheduledAt ?? repair.scheduledAt,
+      assignedTo: parsed.data.assignedTo ?? repair.assignedTo
+    }
+  });
   res.json(updated);
 });
 

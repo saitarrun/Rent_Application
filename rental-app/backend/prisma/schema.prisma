@@ -16,6 +16,8 @@ model User {
   properties     Property[] @relation("ownerProperties")
   leasesAsOwner  Lease[]    @relation("ownerLeases")
   leasesAsTenant Lease[]    @relation("tenantLeases")
+  listings       Listing[]
+  applications   Application[] @relation("ApplicantApplications")
 }
 
 model Property {
@@ -51,6 +53,7 @@ model Lease {
   termsHash          String?
   pdfPath            String?
   status             String    @default("pending")
+  autopayEnabled     Boolean   @default(false)
   invoices           Invoice[]
   receipts           Receipt[]
   repairs            Repair[]
@@ -95,6 +98,10 @@ model Repair {
   title      String
   detail     String
   priority   String
+  category   String   @default("general")
+  preferredWindow String?
+  scheduledAt String?
+  assignedTo  String?
   status     String   @default("open")
   photosPath String?
 }
@@ -107,4 +114,43 @@ model Profile {
   lateFeeType  String   @default("fixed")
   lateFeeValue Decimal  @default("0")
   updatedAt    DateTime @updatedAt
+}
+
+model Listing {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  title       String
+  address     String
+  city        String
+  state       String
+  rentEth     Decimal
+  beds        Int
+  baths       Decimal?
+  sqft        Int?
+  amenities   String?
+  photoUrl    String?
+  available   Boolean  @default(true)
+  source      String   @default("mock")
+  externalUrl String?
+  propertyId  String?
+  applications Application[]
+}
+
+model Application {
+  id             String   @id @default(cuid())
+  listingId      String
+  listing        Listing  @relation(fields: [listingId], references: [id])
+  applicantId    String?
+  applicant      User?    @relation("ApplicantApplications", fields: [applicantId], references: [id])
+  applicantEmail String
+  applicantName  String
+  applicantPhone String?
+  wallet         String
+  message        String?
+  status         String   @default("submitted")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
