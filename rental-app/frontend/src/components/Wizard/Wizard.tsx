@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import StepRole from './StepRole';
 import StepProperty from './StepProperty';
 import StepParties from './StepParties';
 import StepDates from './StepDates';
@@ -21,7 +20,6 @@ type StepDef = {
 };
 
 const steps: StepDef[] = [
-  { label: 'Role', component: StepRole },
   { label: 'Property', component: StepProperty },
   { label: 'Parties', component: StepParties },
   { label: 'Dates', component: StepDates },
