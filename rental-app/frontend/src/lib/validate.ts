@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 export const leaseWizardSchema = z.object({
-  role: z.enum(['owner', 'tenant']).default('owner'),
   propertyName: z.string().min(1, 'Property name is required'),
   propertyAddress: z.string().min(1, 'Address is required'),
   tenantEmail: z.string().email('Valid tenant email required'),

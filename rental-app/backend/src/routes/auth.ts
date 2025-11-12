@@ -50,12 +50,10 @@ router.post('/nonce', async (req, res) => {
       updates.ethAddr = wallet;
     }
     if (email && user.email !== email) {
-      const existing = await prisma.user.findUnique({ where: { email } });
-      if (!existing || existing.id === user.id) {
+      // only update email if no other user owns it
+      const existingEmailOwner = await prisma.user.findUnique({ where: { email } });
+      if (!existingEmailOwner || existingEmailOwner.id === user.id) {
         updates.email = email;
-      } else {
-        updates.role = existing.role;
-        user = existing;
       }
     }
     if (user.role !== selectedRole) {

@@ -1,0 +1,41 @@
+[
+  {
+    "title": "Modern Downtown Loft",
+    "address": "123 Market St",
+    "city": "San Francisco",
+    "state": "CA",
+    "rentEth": "1.2",
+    "beds": 2,
+    "baths": 1.5,
+    "sqft": 950,
+    "amenities": "Gym, Rooftop deck, Secure entry",
+    "photoUrl": "https://images.unsplash.com/photo-1523217582562-09d0def993a6",
+    "externalUrl": "https://example.com/listings/loft"
+  },
+  {
+    "title": "Waterfront Townhome",
+    "address": "44 Harbor Way",
+    "city": "Seattle",
+    "state": "WA",
+    "rentEth": "0.85",
+    "beds": 3,
+    "baths": 2,
+    "sqft": 1320,
+    "amenities": "Garage, Smart lock, EV charger",
+    "photoUrl": "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85",
+    "externalUrl": "https://example.com/listings/townhome"
+  },
+  {
+    "title": "Cozy Suburban Flat",
+    "address": "78 Willow Dr",
+    "city": "Austin",
+    "state": "TX",
+    "rentEth": "0.55",
+    "beds": 2,
+    "baths": 1,
+    "sqft": 780,
+    "amenities": "Pool, Pet friendly, Parking",
+    "photoUrl": "https://images.unsplash.com/photo-1505693314120-0d443867891c",
+    "externalUrl": "https://example.com/listings/flat"
+  }
+]

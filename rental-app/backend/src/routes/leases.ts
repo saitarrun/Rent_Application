@@ -197,12 +197,23 @@ router.post('/:id/repairs', async (req, res) => {
     .object({
       title: z.string().min(1),
       detail: z.string().min(1),
-      priority: z.enum(['low', 'normal', 'high']).default('normal')
+      priority: z.enum(['low', 'normal', 'high']).default('normal'),
+      category: z.string().default('general'),
+      preferredWindow: z.string().optional()
     })
     .safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error.flatten());
   const repair = await prisma.repair.create({ data: { leaseId: lease.id, ...parsed.data } });
   res.status(201).json(repair);
+});
+
+router.patch('/:id/autopay', async (req, res) => {
+  const lease = await prisma.lease.findUnique({ where: { id: req.params.id } });
+  if (!lease) return res.status(404).json({ message: 'Lease not found' });
+  if (req.auth?.userId !== lease.tenantId) return res.status(403).json({ message: 'Only tenant can toggle autopay' });
+  const autopay = Boolean(req.body.autopay);
+  const updated = await prisma.lease.update({ where: { id: lease.id }, data: { autopayEnabled: autopay } });
+  res.json(updated);
 });
 
 router.post('/:id/sign', async (req, res) => {

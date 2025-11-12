@@ -44,6 +44,7 @@ Update `contracts.json` with the deployed addresses from each network so the bac
 ```bash
 cd rental-app/backend
 cp .env.example .env        # adjust DATABASE_URL/JWT_SECRET/SEPOLIA_RPC
+# optional: add REPLIERS_API_KEY=QGP9GxXJt2QTRjC3lARYOBmp2lJHiW to pull the external property feed
 npm install
 npx prisma migrate dev -n init
 npm run dev                 # http://localhost:4000
@@ -53,12 +54,15 @@ API surface (JWT required for all non-auth routes):
 - `POST /api/auth/nonce` / `POST /api/auth/verify` – wallet-based login challenge for owners & tenants.
 - `GET/PUT /api/profile` – late fee + contact settings.
 - `GET /api/leases`, `GET /api/leases/:id`, `POST /api/leases`, `PATCH /api/leases/:id`, `POST /api/leases/:id/pdf`.
-- `POST /api/leases/:id/sign` – owner or tenant e-signature acknowledgement.
+- `POST /api/leases/:id/sign`, `PATCH /api/leases/:id/autopay` – e-sign plus autopay preference toggle.
 - `GET /api/leases/:id/invoices`, `GET /api/invoices/:id`, `POST /api/invoices/generate-due`, `POST /api/invoices/:id/pay-init`, `PATCH /api/invoices/:id/reconcile`.
 - `GET /api/leases/:id/repairs`, `POST /api/leases/:id/repairs`, `PATCH /api/repairs/:id`.
 - `GET /api/properties/:id/ledger`.
 - `POST /api/receipts/:id/pdf`.
+- `GET/POST /api/listings` – browse rental inventory and sync from the external feed.
+- `GET/POST/PATCH /api/applications` – tenant lease applications and owner approvals.
 - Static PDF hosting at `/files/leases/*` and `/files/receipts/*` plus `/contracts.json` passthrough for the frontend.
+- Optional listing feed: set `REPLIERS_API_URL` / `REPLIERS_API_KEY` in `backend/.env` to ingest external inventory; otherwise the server falls back to `backend/src/data/listings.json`.
 
 ACL & business rules:
 - JWT carries `{ userId, role, ethAddr }` and every query filters by owner/tenant IDs.
@@ -75,8 +79,10 @@ npm run dev                 # http://localhost:5173 (proxy to backend)
 ```
 Capabilities:
 - MetaMask login flow with role selection; owner wallets double as admins for their entire portfolio while tenants land on a restricted UI.
-- Owner dashboard with metrics, wizard-based lease creation (7 steps), property ledger view, repair queue, and PDF downloads; owners can e-sign drafts before sharing.
-- Tenant dashboard showing only assigned leases, outstanding invoices, repair status, and one-click ETH “Pay now”; tenants must review and sign the lease before payments unlock.
+- Owner dashboard with metrics, wizard-based lease creation, property ledger view, repair queue, live payment feed, and PDF downloads; owners can e-sign drafts before sharing.
+- Tenant dashboard showing only assigned leases, outstanding invoices, repair status, autopay toggle, and one-click ETH “Pay now”; tenants must review and sign the lease before payments unlock.
+- Listings hub that can refresh from the mock API feed; tenants browse like RentCafe, submit applications, and owners approve/reject to auto-create leases.
+- Application queue for owners mirroring RentCafe workflows, plus richer maintenance scheduling (category, preferred window, vendor assignment).
 - Environment toggle (Local ↔ Sepolia) in the navbar automatically calls `wallet_switchEthereumChain` and reads the right addresses from `/contracts.json`.
 - jsPDF downloads for leases and receipts, while backend endpoints accept uploaded signed PDFs for archival.
 
@@ -91,6 +97,11 @@ Capabilities:
 3. On successful chain tx, the UI calls `/reconcile`, invoice status flips to `paid`, and a receipt row/PDF become available. Property ledger aggregates collected vs. outstanding per lease.
 4. Tenants open repair tickets with photos/notes; owners change statuses and tenants see real-time updates.
 5. Switch between Ganache (internal testing) and Sepolia (faucet ETH) with the navbar toggle—flows remain identical.
+
+### Listings & applications
+- Owners can sync sample listings via **Listings → Sync feed** (calls `/api/listings/refresh`) and toggle availability.
+- Tenants browse the Listings page, apply for units, and track the status inside **Applications**.
+- Owners review applications, change status, and approving one automatically provisions the property + lease + first invoice.
 
 ## Notes
 - Prisma targets SQLite by default; override `DATABASE_URL` (e.g., Postgres) before running migrations.

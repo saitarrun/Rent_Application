@@ -1,11 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { fetchLeases } from '../lib/api';
+import { fetchLeases, fetchApplications } from '../lib/api';
 import { useAppStore } from '../store/useAppStore';
 
 export default function Dashboard() {
   const role = useAppStore((state) => state.user?.role);
   const { data: leases = [] } = useQuery({ queryKey: ['leases'], queryFn: fetchLeases });
+  const { data: applications = [] } = useQuery({
+    queryKey: ['applications'],
+    queryFn: fetchApplications,
+    enabled: role === 'owner'
+  });
 
   const ownerView = role === 'owner';
   const upcomingInvoices = leases
@@ -41,6 +46,7 @@ export default function Dashboard() {
     : [];
 
   const nextDue = !ownerView ? upcomingInvoices[0] : null;
+  const pendingApplications = ownerView ? applications.filter((app: any) => app.status === 'submitted' || app.status === 'reviewing').length : 0;
 
   return (
     <div className="space-y-6">
@@ -58,10 +64,16 @@ export default function Dashboard() {
           <p className="text-2xl font-semibold">{upcomingInvoices.length}</p>
         </div>
         {ownerView ? (
-          <div className="bg-white border rounded p-4">
-            <p className="text-sm text-slate-500">Collected (ETH)</p>
-            <p className="text-2xl font-semibold">{collected.toFixed(2)}</p>
-          </div>
+          <>
+            <div className="bg-white border rounded p-4">
+              <p className="text-sm text-slate-500">Collected (ETH)</p>
+              <p className="text-2xl font-semibold">{collected.toFixed(2)}</p>
+            </div>
+            <div className="bg-white border rounded p-4">
+              <p className="text-sm text-slate-500">Open applications</p>
+              <p className="text-2xl font-semibold">{pendingApplications}</p>
+            </div>
+          </>
         ) : (
           <div className="bg-white border rounded p-4">
             <p className="text-sm text-slate-500">Next due date</p>
