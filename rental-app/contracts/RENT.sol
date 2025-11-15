@@ -1,60 +1,99 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title RENT - Simple lease registry storing tenant binding for on-chain enforcement.
+/// @title RENT - Minimal on-chain lease management with direct owner payouts.
 contract RENT {
-    struct Agreement {
+    struct Lease {
+        uint256 id;
         address owner;
         address tenant;
         uint256 rentWei;
+        uint256 depositWei;
         uint256 startUnix;
         uint256 endUnix;
-        bytes32 termsHash;
+        bool active;
     }
 
-    mapping(uint256 => Agreement) public agreements;
-    mapping(uint256 => address) public leaseTenant;
+    uint256 public nextLeaseId;
+    mapping(uint256 => Lease) public leases;
 
-    event AgreementCreated(
-        uint256 indexed leaseId,
-        address indexed owner,
-        address indexed tenant,
-        uint256 rentWei,
-        uint256 startUnix,
-        uint256 endUnix,
-        bytes32 termsHash
-    );
+    event LeaseCreated(uint256 indexed id, address indexed tenant, address indexed owner);
+    event LeaseSigned(uint256 indexed id, address tenant);
+    event DepositPaid(uint256 indexed id, uint256 amount, uint256 time);
+    event AnnualRentPaid(uint256 indexed id, uint256 amount, uint256 time);
+    event RepairRequested(uint256 indexed id, bytes32 reqId, string title, uint256 cost);
+    event RepairUpdated(uint256 indexed id, bytes32 reqId, string status);
 
-    /// @notice Creates an agreement mapping a lease id to its tenant wallet.
-    /// @dev rent/terms hash are stored for auditing while calculations stay off-chain.
-    function createAgreement(
-        uint256 leaseId,
+    function createLease(
         address tenant,
         uint256 rentWei,
+        uint256 depositWei,
         uint256 startUnix,
-        uint256 endUnix,
-        bytes32 termsHash
-    ) external {
+        uint256 endUnix
+    ) external returns (uint256 leaseId) {
         require(tenant != address(0), "Tenant required");
-        require(leaseId != 0, "LeaseId required");
-        Agreement storage ag = agreements[leaseId];
-        require(ag.owner == address(0), "Lease exists");
+        require(rentWei > 0 && depositWei > 0, "Invalid amounts");
+        require(endUnix > startUnix, "Invalid schedule");
 
-        agreements[leaseId] = Agreement({
+        leaseId = nextLeaseId++;
+        leases[leaseId] = Lease({
+            id: leaseId,
             owner: msg.sender,
             tenant: tenant,
             rentWei: rentWei,
+            depositWei: depositWei,
             startUnix: startUnix,
             endUnix: endUnix,
-            termsHash: termsHash
+            active: false
         });
 
-        leaseTenant[leaseId] = tenant;
-        emit AgreementCreated(leaseId, msg.sender, tenant, rentWei, startUnix, endUnix, termsHash);
+        emit LeaseCreated(leaseId, tenant, msg.sender);
     }
 
-    /// @notice Returns the wallet that created the agreement for payout wiring.
-    function leaseOwner(uint256 leaseId) external view returns (address) {
-        return agreements[leaseId].owner;
+    function signLease(uint256 leaseId) external {
+        Lease storage lease = leases[leaseId];
+        require(lease.tenant == msg.sender, "Not tenant");
+        emit LeaseSigned(leaseId, msg.sender);
+    }
+
+    function payDeposit(uint256 leaseId) external payable {
+        Lease storage lease = leases[leaseId];
+        require(lease.tenant == msg.sender, "Not tenant");
+        require(msg.value == lease.depositWei, "Incorrect amount");
+        _forward(lease.owner, msg.value);
+        emit DepositPaid(leaseId, msg.value, block.timestamp);
+    }
+
+    function payAnnualRent(uint256 leaseId) external payable {
+        Lease storage lease = leases[leaseId];
+        require(lease.tenant == msg.sender, "Not tenant");
+        require(msg.value == lease.rentWei, "Incorrect amount");
+        if (!lease.active) {
+            lease.active = true;
+        }
+        _forward(lease.owner, msg.value);
+        emit AnnualRentPaid(leaseId, msg.value, block.timestamp);
+    }
+
+    function requestRepair(uint256 leaseId, string calldata title, uint256 cost) external returns (bytes32 reqId) {
+        Lease storage lease = leases[leaseId];
+        require(lease.tenant == msg.sender, "Not tenant");
+        reqId = keccak256(abi.encodePacked(block.timestamp, leaseId, msg.sender, title));
+        emit RepairRequested(leaseId, reqId, title, cost);
+    }
+
+    function setRepairStatus(uint256 leaseId, bytes32 reqId, string calldata status) external {
+        Lease storage lease = leases[leaseId];
+        require(lease.owner == msg.sender, "Not owner");
+        emit RepairUpdated(leaseId, reqId, status);
+    }
+
+    function getLease(uint256 leaseId) external view returns (Lease memory) {
+        return leases[leaseId];
+    }
+
+    function _forward(address to, uint256 amount) internal {
+        (bool sent, ) = payable(to).call{value: amount}("");
+        require(sent, "Transfer failed");
     }
 }

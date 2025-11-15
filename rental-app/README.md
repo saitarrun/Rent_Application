@@ -44,7 +44,11 @@ Update `contracts.json` with the deployed addresses from each network so the bac
 ```bash
 cd rental-app/backend
 cp .env.example .env        # adjust DATABASE_URL/JWT_SECRET/SEPOLIA_RPC
-# optional: add REPLIERS_API_KEY=QGP9GxXJt2QTRjC3lARYOBmp2lJHiW to pull the external property feed
+# optional listings feed / rpc overrides
+# REPLIERS_API_URL=https://api.repliers.com/v1/listings
+# REPLIERS_API_KEY=QGP9GxXJt2QTRjC3lARYOBmp2lJHiW
+# CHAIN_RPC_URL=http://127.0.0.1:8545
+# CHAIN_ID=1337
 npm install
 npx prisma migrate dev -n init
 npm run dev                 # http://localhost:4000
@@ -59,8 +63,8 @@ API surface (JWT required for all non-auth routes):
 - `GET /api/leases/:id/repairs`, `POST /api/leases/:id/repairs`, `PATCH /api/repairs/:id`.
 - `GET /api/properties/:id/ledger`.
 - `POST /api/receipts/:id/pdf`.
-- `GET/POST /api/listings` – browse rental inventory and sync from the external feed.
-- `GET/POST/PATCH /api/applications` – tenant lease applications and owner approvals.
+- Listings CRUD: `GET /api/listings`, `POST /api/listings`, `PATCH /api/listings/:id`, `DELETE /api/listings/:id`, and `POST /api/listings/refresh`.
+- Applications: `POST /api/applications`, `GET /api/applications`, `PATCH /api/applications/:id/approve`, `PATCH /api/applications/:id/reject`.
 - Static PDF hosting at `/files/leases/*` and `/files/receipts/*` plus `/contracts.json` passthrough for the frontend.
 - Optional listing feed: set `REPLIERS_API_URL` / `REPLIERS_API_KEY` in `backend/.env` to ingest external inventory; otherwise the server falls back to `backend/src/data/listings.json`.
 

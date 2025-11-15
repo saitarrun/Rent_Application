@@ -1,76 +1,89 @@
-import { NavLink } from 'react-router-dom';
-import { useAppStore, type Environment } from '../store/useAppStore';
-import { ensureNetwork } from '../lib/eth';
+import { Link, useLocation } from 'react-router-dom';
+import { useAppStore } from '../store/useAppStore';
+
+const ownerLinks = [
+  { label: 'Dashboard', path: '/' },
+  { label: 'Properties', path: '/properties' },
+  { label: 'Listings', path: '/listings' },
+  { label: 'Applications', path: '/applications' },
+  { label: 'Agreements', path: '/agreements' },
+  { label: 'Settings', path: '/settings' }
+];
+
+const tenantLinks = [
+  { label: 'Dashboard', path: '/' },
+  { label: 'Browse', path: '/browse' },
+  { label: 'Applications', path: '/applications' },
+  { label: 'Agreements', path: '/agreements' },
+  { label: 'Settings', path: '/settings' }
+];
+
+function useNavLinks(role: 'owner' | 'tenant' | null) {
+  if (role === 'owner') return ownerLinks;
+  if (role === 'tenant') return tenantLinks;
+  return [];
+}
 
 export default function Navbar() {
-  const user = useAppStore((state) => state.user);
-  const wallet = useAppStore((state) => state.wallet);
+  const token = useAppStore((state) => state.token);
+  const role = useAppStore((state) => state.role);
   const environment = useAppStore((state) => state.environment);
   const setEnvironment = useAppStore((state) => state.setEnvironment);
-  const pushNotice = useAppStore((state) => state.pushNotice);
   const logout = useAppStore((state) => state.logout);
+  const location = useLocation();
 
-  if (!user) return null;
+  if (!token) return null;
 
-  const links = [
-    { to: '/', label: 'Dashboard' },
-    { to: '/listings', label: user.role === 'owner' ? 'Listings' : 'Browse' },
-    { to: '/applications', label: 'Applications' },
-    { to: '/agreements', label: 'Agreements' },
-    { to: '/settings', label: 'Settings' }
-  ];
-  if (user.role === 'owner') {
-    links.splice(4, 0, { to: '/create', label: 'Create lease' });
-  }
+  const links = useNavLinks(role);
 
-  const handleEnvChange = async (value: Environment) => {
-    setEnvironment(value);
-    try {
-      await ensureNetwork(value);
-      pushNotice('success', `${value === 'local' ? 'Local' : 'Sepolia'} wallet ready`);
-    } catch (err: any) {
-      pushNotice('error', err.message || 'Wallet switch failed');
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    logout();
   };
 
+  const toggleEnvironment = () => {
+    setEnvironment(environment === 'local' ? 'sepolia' : 'local');
+  };
+
+  const roleLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Guest';
+
   return (
-    <header className="bg-white border-b">
-      <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-4">
-        <div className="flex items-center gap-6">
-          <span className="font-semibold">Rental Portal</span>
-          <nav className="flex items-center gap-4 text-sm">
-            {links.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                className={({ isActive }) =>
-                  `px-2 py-1 rounded ${isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'}`
-                }
+    <header className="bg-surface-1/80 border-b border-outline shadow-soft backdrop-blur supports-[backdrop-filter]:bg-surface-1/70">
+      <div className="container flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <p className="text-lg font-semibold text-foreground">Rental Suite</p>
+            <p className="text-xs text-muted">Owner & tenant control center</p>
+          </div>
+          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-brand/20 text-brand">{roleLabel}</span>
+          <button
+            type="button"
+            onClick={toggleEnvironment}
+            className="px-3 py-1.5 text-xs font-semibold rounded-full border border-outline text-muted hover:bg-surface-2 transition"
+          >
+            {environment === 'local' ? 'Ganache' : 'Sepolia'}
+          </button>
+        </div>
+        <nav className="flex flex-wrap items-center gap-2 text-sm">
+          {links.map((link) => {
+            const active = location.pathname === link.path;
+            return (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`px-3 py-1.5 rounded-xl transition ${
+                  active ? 'bg-brand text-brand-fg shadow-ring' : 'text-muted hover:bg-surface-2'
+                }`}
               >
                 {link.label}
-              </NavLink>
-            ))}
-          </nav>
-        </div>
-        <div className="flex items-center gap-3 text-sm">
-          <span className="text-slate-500 capitalize">{user.role}</span>
-          {wallet && <span className="font-mono text-xs hidden md:inline">{wallet.slice(0, 6)}…{wallet.slice(-4)}</span>}
-          <button
-            onClick={() => handleEnvChange('local')}
-            className={`px-3 py-1 rounded border ${environment === 'local' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
-          >
-            Local
+              </Link>
+            );
+          })}
+          <button onClick={handleLogout} className="px-3 py-1.5 rounded-xl text-muted hover:text-danger transition-colors" type="button">
+            Logout
           </button>
-          <button
-            onClick={() => handleEnvChange('sepolia')}
-            className={`px-3 py-1 rounded border ${environment === 'sepolia' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}
-          >
-            Sepolia
-          </button>
-          <button onClick={logout} className="px-3 py-1 rounded border border-slate-200 text-slate-600">
-            Sign out
-          </button>
-        </div>
+        </nav>
       </div>
     </header>
   );

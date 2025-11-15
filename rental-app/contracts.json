@@ -2,9 +2,9 @@
   "1337": {
     "chainLabel": "Local",
     "rpcUrl": "http://127.0.0.1:8545",
-    "RENT": "0x5481678055c72a91de5eb87909aa3b60c2f5c484",
-    "Payments": "0x5481678055c72a91de5eb87909aa3b60c2f5c484",
-    "Repairs": "0x5481678055c72a91de5eb87909aa3b60c2f5c484"
+    "RENT": "0x727fD2296E7F483B1d3dc576b6327c86B45A99d7",
+    "Payments": "0xe2A171A9051662e30a77E07D4aBf75eeD8151839",
+    "Repairs": "0x0FBe59faeEc58D47a11D8C57c0089F7077ee6dE2"
   },
   "11155111": {
     "chainLabel": "Sepolia",

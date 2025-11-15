@@ -3,9 +3,10 @@ import { createLease } from '../lib/api';
 import { LeaseWizardData } from '../lib/validate';
 import { useAppStore } from '../store/useAppStore';
 import { useQueryClient } from '@tanstack/react-query';
+import PageHeader from '../components/PageHeader';
 
 export default function Create() {
-  const role = useAppStore((state) => state.user?.role);
+  const role = useAppStore((state) => state.role ?? state.user?.role);
   const pushNotice = useAppStore((state) => state.pushNotice);
   const queryClient = useQueryClient();
 
@@ -33,15 +34,12 @@ export default function Create() {
   };
 
   if (role !== 'owner') {
-    return <p className="text-sm text-slate-500">Only owners can access the lease builder.</p>;
+    return <p className="text-sm text-muted">Only owners can access the lease builder.</p>;
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold">New lease</h1>
-        <p className="text-sm text-slate-500">Seven-step wizard to capture parties, schedule, and ETH terms.</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader title="New lease" description="Seven-step wizard to capture parties, schedule, and ETH terms." />
       <Wizard onSubmit={handleSubmit} />
     </div>
   );

@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
-import PaymentsAbi from '../abi/Payments.json';
+import PaymentsArtifact from '../abi/Payments.json';
+import RentArtifact from '../abi/RENT.json';
 import { getNetwork } from './env';
 import type { Environment } from '../store/useAppStore';
 
@@ -54,11 +55,68 @@ export async function payInvoiceOnChain(
   const contracts = await loadContracts();
   const addresses = contracts[network.chainId];
   if (!addresses?.Payments) throw new Error('Payments contract missing for env');
-  const payments = new ethers.Contract(addresses.Payments, PaymentsAbi, signer);
+  const paymentsAbi = (PaymentsArtifact as any).abi ?? PaymentsArtifact;
+  const payments = new ethers.Contract(addresses.Payments, paymentsAbi as ethers.InterfaceAbi, signer);
   const wei = ethers.parseEther(invoice.amountEth.toString());
   const startUnix = BigInt(Math.floor(new Date(invoice.periodStartISO).getTime() / 1000));
   const endUnix = BigInt(Math.floor(new Date(invoice.periodEndISO).getTime() / 1000));
   const tx = await payments.payRent(leaseKey(leaseId), startUnix, endUnix, wei, { value: wei });
+  const receipt = await tx.wait();
+  return receipt.hash ?? tx.hash;
+}
+
+async function resolveContractAddress(chainId?: string | number) {
+  const contracts = await loadContracts();
+  const key =
+    typeof chainId === 'number'
+      ? chainId.toString()
+      : chainId || Object.keys(contracts)[0];
+  const entry = contracts[key];
+  if (!entry?.RENT) throw new Error('RENT contract address missing');
+  return entry.RENT;
+}
+
+export async function getRentContract(providerOrSigner?: ethers.Signer | ethers.Provider) {
+  let provider: ethers.Provider | undefined;
+  if (providerOrSigner && 'provider' in providerOrSigner) {
+    provider = providerOrSigner.provider ?? undefined;
+  } else if (providerOrSigner) {
+    provider = providerOrSigner as ethers.Provider;
+  }
+  if (!provider) {
+    provider = new ethers.BrowserProvider((window as any).ethereum);
+  }
+  const network =
+    typeof (provider as ethers.BrowserProvider).getNetwork === 'function'
+      ? await (provider as ethers.BrowserProvider).getNetwork()
+      : undefined;
+  const address = await resolveContractAddress(network?.chainId ? Number(network.chainId) : undefined);
+  const rentAbi = (RentArtifact as any).abi ?? RentArtifact;
+  return new ethers.Contract(address, rentAbi as ethers.InterfaceAbi, providerOrSigner ?? provider);
+}
+
+function normalizeLeaseId(leaseId: string | number) {
+  return typeof leaseId === 'string' ? BigInt(leaseId) : BigInt(leaseId);
+}
+
+export async function payDeposit(leaseId: string | number, depositEth: string) {
+  const provider = new ethers.BrowserProvider((window as any).ethereum);
+  const signer = await provider.getSigner();
+  const contract = await getRentContract(signer);
+  const tx = await contract.payDeposit(normalizeLeaseId(leaseId), {
+    value: ethers.parseEther(depositEth)
+  });
+  const receipt = await tx.wait();
+  return receipt.hash ?? tx.hash;
+}
+
+export async function payAnnual(leaseId: string | number, annualRentEth: string) {
+  const provider = new ethers.BrowserProvider((window as any).ethereum);
+  const signer = await provider.getSigner();
+  const contract = await getRentContract(signer);
+  const tx = await contract.payAnnualRent(normalizeLeaseId(leaseId), {
+    value: ethers.parseEther(annualRentEth)
+  });
   const receipt = await tx.wait();
   return receipt.hash ?? tx.hash;
 }
