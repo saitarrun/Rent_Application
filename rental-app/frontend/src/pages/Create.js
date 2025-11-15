@@ -3,8 +3,9 @@ import Wizard from '../components/Wizard/Wizard';
 import { createLease } from '../lib/api';
 import { useAppStore } from '../store/useAppStore';
 import { useQueryClient } from '@tanstack/react-query';
+import PageHeader from '../components/PageHeader';
 export default function Create() {
-    const role = useAppStore((state) => state.user?.role);
+    const role = useAppStore((state) => state.role ?? state.user?.role);
     const pushNotice = useAppStore((state) => state.pushNotice);
     const queryClient = useQueryClient();
     const handleSubmit = async (data) => {
@@ -30,7 +31,7 @@ export default function Create() {
         queryClient.invalidateQueries({ queryKey: ['leases'] });
     };
     if (role !== 'owner') {
-        return _jsx("p", { className: "text-sm text-slate-500", children: "Only owners can access the lease builder." });
+        return _jsx("p", { className: "text-sm text-muted", children: "Only owners can access the lease builder." });
     }
-    return (_jsxs("div", { className: "space-y-4", children: [_jsxs("div", { children: [_jsx("h1", { className: "text-2xl font-semibold", children: "New lease" }), _jsx("p", { className: "text-sm text-slate-500", children: "Seven-step wizard to capture parties, schedule, and ETH terms." })] }), _jsx(Wizard, { onSubmit: handleSubmit })] }));
+    return (_jsxs("div", { className: "space-y-6", children: [_jsx(PageHeader, { title: "New lease", description: "Seven-step wizard to capture parties, schedule, and ETH terms." }), _jsx(Wizard, { onSubmit: handleSubmit })] }));
 }

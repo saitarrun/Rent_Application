@@ -1,161 +1,233 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import prisma, { ensureProfileSeed } from '../lib/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
+import prisma, { ensureProfileSeed } from '../lib/prisma';
+import { requireAuth } from '../middleware/auth';
+import { createLeaseOnChain } from '../lib/eth';
 import { buildInvoicePayload } from '../lib/invoiceService';
 
 const router = Router();
+router.use(requireAuth);
 
-const applicationSchema = z.object({
+const createSchema = z.object({
   listingId: z.string(),
-  message: z.string().optional(),
-  phone: z.string().optional()
+  message: z.string().optional()
 });
 
-router.get('/', async (req, res) => {
-  const auth = req.auth!;
-  if (auth.role === 'owner' || auth.role === 'admin') {
-    const applications = await prisma.application.findMany({
-      where: { listing: { ownerId: auth.userId } },
-      include: { listing: true, applicant: true }
-    });
-    return res.json(applications);
-  }
-  const applications = await prisma.application.findMany({
-    where: { applicantId: auth.userId },
-    include: { listing: true }
-  });
-  res.json(applications);
-});
+function serialize(app: any) {
+  return {
+    id: app.id,
+    leaseId: app.leaseId ?? null,
+    listing: app.listing
+      ? {
+          id: app.listing.id,
+          title: app.listing.title,
+          city: app.listing.city,
+          state: app.listing.state,
+          rentEth: app.listing.rentEth
+        }
+      : null,
+    applicantEmail: app.applicantEmail,
+    applicantName: app.applicantName,
+    wallet: app.wallet,
+    message: app.message,
+    status: app.status,
+    createdAt: app.createdAt,
+    updatedAt: app.updatedAt
+  };
+}
 
 router.post('/', async (req, res) => {
   const auth = req.auth!;
-  if (auth.role !== 'tenant' && auth.role !== 'admin') {
-    return res.status(403).json({ message: 'Only tenants can submit applications' });
+  if (auth.role !== 'tenant') {
+    return res.status(403).json({ message: 'Only tenants can apply' });
   }
-  const parsed = applicationSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json(parsed.error.flatten());
-  const listing = await prisma.listing.findUnique({ where: { id: parsed.data.listingId } });
-  if (!listing || !listing.available) return res.status(404).json({ message: 'Listing unavailable' });
+  const parsed = createSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json(parsed.error.flatten());
+  }
 
-  const user = await prisma.user.findUnique({ where: { id: auth.userId } });
-  if (!user?.ethAddr) return res.status(400).json({ message: 'Wallet required' });
+  const listing = await prisma.listing.findUnique({
+    where: { id: parsed.data.listingId }
+  });
+  if (!listing || !listing.available) {
+    return res.status(404).json({ message: 'Listing unavailable' });
+  }
+  const applicant = await prisma.user.findUnique({ where: { id: auth.userId } });
+  if (!applicant?.ethAddr) {
+    return res.status(400).json({ message: 'Wallet required to apply' });
+  }
 
   const application = await prisma.application.create({
     data: {
       listingId: listing.id,
       applicantId: auth.userId,
-      applicantEmail: user.email,
-      applicantName: user.email.split('@')[0],
-      applicantPhone: parsed.data.phone,
-      wallet: user.ethAddr,
-      message: parsed.data.message
-    }
-  });
-  res.status(201).json(application);
-});
-
-const updateSchema = z.object({
-  status: z.enum(['submitted', 'reviewing', 'approved', 'rejected']).optional()
-});
-
-router.patch('/:id', async (req, res) => {
-  const auth = req.auth!;
-  const application = await prisma.application.findUnique({
-    where: { id: req.params.id },
+      applicantEmail: applicant.email,
+      applicantName: applicant.email.split('@')[0] ?? 'Tenant',
+      wallet: applicant.ethAddr,
+      message: parsed.data.message,
+      status: 'submitted'
+    },
     include: { listing: true }
   });
-  if (!application) return res.status(404).json({ message: 'Application not found' });
-  if (auth.role !== 'owner' || application.listing.ownerId !== auth.userId) {
-    return res.status(403).json({ message: 'Not authorized for this application' });
-  }
-  const parsed = updateSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json(parsed.error.flatten());
 
-  if (parsed.data.status === 'approved' && application.status !== 'approved') {
-    await approveApplication(application.id);
-  }
-
-  const updated = await prisma.application.update({
-    where: { id: application.id },
-    data: { status: parsed.data.status }
-  });
-  res.json(updated);
+  res.status(201).json(serialize(application));
 });
 
-async function approveApplication(applicationId: string) {
+router.get('/', async (req, res) => {
+  const auth = req.auth!;
+  const where =
+    auth.role === 'tenant'
+      ? { applicantId: auth.userId }
+      : { listing: { ownerId: auth.userId } };
+  const applications = await prisma.application.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: { listing: true }
+  });
+  res.json(applications.map(serialize));
+});
+
+router.patch('/:id/approve', async (req, res) => {
+  const auth = req.auth!;
+  if (auth.role !== 'owner') {
+    return res.status(403).json({ message: 'Only owners can approve' });
+  }
   const application = await prisma.application.findUnique({
-    where: { id: applicationId },
+    where: { id: req.params.id },
     include: { listing: true, applicant: true }
   });
-  if (!application) return;
-  const listing = application.listing;
-  const ownerId = listing.ownerId;
+  if (!application || !application.listing) {
+    return res.status(404).json({ message: 'Application not found' });
+  }
+  if (application.listing.ownerId !== auth.userId) {
+    return res.status(403).json({ message: 'Listing owner mismatch' });
+  }
+  if (!application.wallet) {
+    return res.status(400).json({ message: 'Applicant wallet missing' });
+  }
 
-  let propertyId = listing.propertyId;
+  const monthlyRent = new Decimal(application.listing.rentEth ?? 0);
+  if (monthlyRent.lte(0)) {
+    return res.status(400).json({ message: 'Listing rent missing' });
+  }
+  const depositEth = monthlyRent;
+  const annualRent = monthlyRent.mul(12);
+  const startUnix = Math.floor(Date.now() / 1000);
+  const endUnix = startUnix + 365 * 24 * 60 * 60;
+
+  const chain = await createLeaseOnChain({
+    tenantWallet: application.wallet,
+    annualRentEth: Number(annualRent.toString()),
+    depositEth: Number(depositEth.toString()),
+    startUnix,
+    endUnix
+  });
+
+  let propertyId = application.listing.propertyId;
   if (!propertyId) {
     const property = await prisma.property.create({
       data: {
-        ownerId,
-        name: listing.title,
-        address: `${listing.address}, ${listing.city}, ${listing.state}`
+        ownerId: auth.userId,
+        name: application.listing.title,
+        address: `${application.listing.address1}, ${application.listing.city}, ${application.listing.state}`
       }
     });
     propertyId = property.id;
-    await prisma.listing.update({ where: { id: listing.id }, data: { propertyId, available: false } });
   }
 
-  let tenantId = application.applicantId;
-  if (!tenantId) {
-    const tenant = await prisma.user.upsert({
+  const tenant =
+    application.applicant ??
+    (await prisma.user.upsert({
       where: { email: application.applicantEmail },
       update: { role: 'tenant', ethAddr: application.wallet },
       create: { email: application.applicantEmail, role: 'tenant', ethAddr: application.wallet }
-    });
-    tenantId = tenant.id;
-  }
+    }));
 
   const lease = await prisma.lease.create({
     data: {
+      id: String(chain.chainLeaseId),
+      chainLeaseId: chain.chainLeaseId,
+      listingId: application.listing.id,
       propertyId: propertyId!,
-      ownerId,
-      tenantId: tenantId!,
+      tenantId: tenant.id,
+      ownerId: auth.userId,
       tenantEth: application.wallet,
-      ownerSignedAt: new Date(),
-      startISO: new Date().toISOString(),
-      endISO: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-      dueDay: 1,
-      monthlyRentEth: new Decimal(listing.rentEth),
-      securityDepositEth: new Decimal(listing.rentEth),
+      chainId: chain.chainId,
+      txHash: chain.txHash,
+      startISO: new Date(startUnix * 1000).toISOString(),
+      endISO: new Date(endUnix * 1000).toISOString(),
+      annualRentEth: annualRent,
+      monthlyRentEth: monthlyRent,
+      securityDepositEth: depositEth,
+      depositBalanceEth: new Decimal(0),
       notes: application.message,
-      status: 'pending'
+      status: 'pending',
+      dueDay: 1
     }
   });
 
   await ensureProfileSeed();
-  const profile = await prisma.profile.findFirst();
-  if (profile) {
-    const invoicePayload = buildInvoicePayload(
-      {
-        id: lease.id,
-        startISO: lease.startISO,
-        endISO: lease.endISO,
-        dueDay: lease.dueDay,
-        monthlyRentEth: lease.monthlyRentEth
-      },
-      profile
-    );
-    await prisma.invoice.create({
-      data: {
-        leaseId: lease.id,
-        periodStartISO: invoicePayload.periodStartISO,
-        periodEndISO: invoicePayload.periodEndISO,
-        dueISO: invoicePayload.dueISO,
-        amountEth: invoicePayload.amountEth,
-        lateFeeEth: invoicePayload.lateFeeEth
-      }
-    });
+  const profile = (await prisma.profile.findFirst())!;
+  const invoicePayload = buildInvoicePayload(
+    {
+      id: lease.id,
+      startISO: lease.startISO,
+      endISO: lease.endISO,
+      dueDay: lease.dueDay,
+      monthlyRentEth: lease.monthlyRentEth
+    },
+    profile
+  );
+
+  await prisma.invoice.create({
+    data: {
+      leaseId: lease.id,
+      periodStartISO: invoicePayload.periodStartISO,
+      periodEndISO: invoicePayload.periodEndISO,
+      dueISO: invoicePayload.dueISO,
+      amountEth: invoicePayload.amountEth,
+      lateFeeEth: invoicePayload.lateFeeEth
+    }
+  });
+
+  await prisma.listing.update({
+    where: { id: application.listing.id },
+    data: { propertyId, available: false }
+  });
+
+  const updatedApplication = await prisma.application.update({
+    where: { id: application.id },
+    data: { status: 'approved', leaseId: lease.id },
+    include: { listing: true }
+  });
+
+  res.json({
+    application: serialize(updatedApplication),
+    lease
+  });
+});
+
+router.patch('/:id/reject', async (req, res) => {
+  const auth = req.auth!;
+  if (auth.role !== 'owner') {
+    return res.status(403).json({ message: 'Only owners can reject' });
   }
-}
+  const application = await prisma.application.findUnique({
+    where: { id: req.params.id },
+    include: { listing: true }
+  });
+  if (!application || application.listing?.ownerId !== auth.userId) {
+    return res.status(404).json({ message: 'Application not found' });
+  }
+
+  const updated = await prisma.application.update({
+    where: { id: application.id },
+    data: { status: 'rejected' },
+    include: { listing: true }
+  });
+
+  res.json(serialize(updated));
+});
 
 export default router;
