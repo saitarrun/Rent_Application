@@ -26,6 +26,7 @@ model Property {
   owner   User    @relation("ownerProperties", fields: [ownerId], references: [id])
   name    String
   address String
+  propertyTemplateId Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   leases  Lease[]
@@ -54,6 +55,7 @@ model Listing {
   externalUrl String?
   propertyId  String?
   property    Property?    @relation(fields: [propertyId], references: [id])
+  propertyTemplateId Int?
   applications Application[]
   leases      Lease[]
 }
@@ -167,4 +169,6 @@ model Application {
   lease          Lease?   @relation(fields: [leaseId], references: [id])
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  detailsJson    Json?
+  documentsJson  Json?
 }

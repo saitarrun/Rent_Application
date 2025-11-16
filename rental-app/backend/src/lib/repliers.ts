@@ -15,6 +15,7 @@ export type MappedListing = {
   photoUrl?: string;
   rentEth: number;
   available: boolean;
+  propertyTemplateId?: number;
 };
 
 const FALLBACK_PATH = path.join(__dirname, '..', 'data', 'listings.json');
@@ -71,7 +72,8 @@ function mapRecord(record: any): MappedListing | null {
     sqft,
     photoUrl,
     rentEth: rentValue,
-    available: Boolean(record.available ?? record.Available ?? true)
+    available: Boolean(record.available ?? record.Available ?? true),
+    propertyTemplateId: coerceNumber(record.propertyTemplateId ?? record.templateId ?? record.templateID)
   };
 }
 

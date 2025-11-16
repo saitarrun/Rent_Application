@@ -28,18 +28,26 @@ router.post('/nonce', async (req, res) => {
 
   let user = await prisma.user.findFirst({ where: { ethAddr: wallet } });
 
-  if (!user && !email) {
-    return res.status(400).json({ message: 'Email is required for first-time login' });
-  }
-
-  if (!user && email) {
+  if (selectedRole === 'owner') {
+    if (!email) {
+      return res.status(400).json({ message: 'Owner email is required' });
+    }
+    const ownerByEmail = await prisma.user.findUnique({ where: { email } });
+    if (!ownerByEmail || ownerByEmail.role !== 'owner') {
+      return res.status(403).json({ message: 'Email not registered as an owner' });
+    }
+    user = ownerByEmail;
+  } else if (!user && email) {
     user = await prisma.user.findUnique({ where: { email } });
   }
 
   if (!user) {
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required for first-time login' });
+    }
     user = await prisma.user.create({
       data: {
-        email: email!,
+        email,
         role: selectedRole,
         ethAddr: wallet
       }
@@ -49,18 +57,28 @@ router.post('/nonce', async (req, res) => {
     if (!user.ethAddr || user.ethAddr !== wallet) {
       updates.ethAddr = wallet;
     }
-    if (email && user.email !== email) {
-      // only update email if no other user owns it
+    if (selectedRole === 'tenant' && email && user.email !== email) {
       const existingEmailOwner = await prisma.user.findUnique({ where: { email } });
       if (!existingEmailOwner || existingEmailOwner.id === user.id) {
         updates.email = email;
       }
     }
-    if (user.role !== selectedRole) {
+    if (user.role !== selectedRole && selectedRole === 'tenant') {
       updates.role = selectedRole;
     }
     if (Object.keys(updates).length) {
+      if (updates.ethAddr) {
+        const walletHolder = await prisma.user.findFirst({
+          where: { ethAddr: updates.ethAddr, NOT: { id: user.id } }
+        });
+        if (walletHolder) {
+          return res.status(409).json({ message: 'This wallet is already linked to another account' });
+        }
+      }
       user = await prisma.user.update({ where: { id: user.id }, data: updates });
+    }
+    if (selectedRole === 'owner' && user.role !== 'owner') {
+      return res.status(403).json({ message: 'Wallet is not authorized for owner access' });
     }
   }
 

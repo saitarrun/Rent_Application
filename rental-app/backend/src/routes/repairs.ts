@@ -60,6 +60,7 @@ router.post('/:leaseId', async (req, res) => {
       costEth: parsed.data.costEth ? new Decimal(parsed.data.costEth) : undefined
     }
   });
+  console.info('Repair created', { leaseId: lease.id, repairId: repair.id, title: repair.title });
   if (lease.chainLeaseId) {
     try {
       const chain = await requestRepairOnChain(lease.chainLeaseId, parsed.data.title, parsed.data.costEth);
@@ -134,6 +135,7 @@ router.patch('/:id', async (req, res) => {
     await deductDepositForRepair(repair.id, new Decimal(updated.costEth));
     updated = await prisma.repair.findUniqueOrThrow({ where: { id: repair.id } });
   }
+  console.info('Repair updated', { repairId: repair.id, status: parsed.data.status });
   if (repair.chainRequestId && repair.lease.chainLeaseId) {
     try {
       await setRepairStatusOnChain(repair.lease.chainLeaseId, repair.chainRequestId, parsed.data.status);

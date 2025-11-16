@@ -9,9 +9,51 @@ import { buildInvoicePayload } from '../lib/invoiceService';
 const router = Router();
 router.use(requireAuth);
 
+const MAX_DOCUMENT_SIZE = 5 * 1024 * 1024;
+
+const occupantSchema = z.object({
+  name: z.string().min(1),
+  relationship: z.string().optional(),
+  age: z.number().int().positive().optional()
+});
+
+const documentSchema = z
+  .object({
+    name: z.string().min(1),
+    type: z.string().optional(),
+    size: z.number().int().nonnegative().optional(),
+    data: z.string().min(1)
+  })
+  .refine((doc) => {
+    if (!doc.data) return false;
+    try {
+      const buffer = Buffer.from(doc.data, 'base64');
+      return buffer.length <= MAX_DOCUMENT_SIZE;
+    } catch (err) {
+      return false;
+    }
+  }, 'Document must be valid base64 under 5MB');
+
+const detailsSchema = z.object({
+  legalName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().min(4),
+  birthDate: z.string().optional(),
+  preferredMoveIn: z.string().optional(),
+  employmentStatus: z.string().min(1),
+  employerName: z.string().optional(),
+  annualIncome: z.number().nonnegative(),
+  monthlyIncome: z.number().nonnegative().optional(),
+  creditScore: z.number().int().min(300).max(850).optional(),
+  occupants: z.array(occupantSchema).default([]),
+  notes: z.string().optional()
+});
+
 const createSchema = z.object({
   listingId: z.string(),
-  message: z.string().optional()
+  message: z.string().optional(),
+  details: detailsSchema,
+  documents: z.array(documentSchema).max(5).optional()
 });
 
 function serialize(app: any) {
@@ -33,7 +75,9 @@ function serialize(app: any) {
     message: app.message,
     status: app.status,
     createdAt: app.createdAt,
-    updatedAt: app.updatedAt
+    updatedAt: app.updatedAt,
+    details: app.detailsJson ?? null,
+    documents: app.documentsJson ?? []
   };
 }
 
@@ -58,15 +102,22 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ message: 'Wallet required to apply' });
   }
 
+  const documents = parsed.data.documents ?? [];
+  const details = parsed.data.details;
+  const applicantName = details.legalName?.trim() || applicant.email.split('@')[0] || 'Tenant';
+  const applicantEmail = details.email || applicant.email;
   const application = await prisma.application.create({
     data: {
       listingId: listing.id,
       applicantId: auth.userId,
-      applicantEmail: applicant.email,
-      applicantName: applicant.email.split('@')[0] ?? 'Tenant',
+      applicantEmail,
+      applicantName,
+      applicantPhone: details.phone,
       wallet: applicant.ethAddr,
-      message: parsed.data.message,
-      status: 'submitted'
+      message: parsed.data.message ?? details.notes,
+      status: 'submitted',
+      detailsJson: details,
+      documentsJson: documents
     },
     include: { listing: true }
   });
@@ -200,6 +251,14 @@ router.patch('/:id/approve', async (req, res) => {
     where: { id: application.id },
     data: { status: 'approved', leaseId: lease.id },
     include: { listing: true }
+  });
+
+  console.info('Lease approved', {
+    applicationId: application.id,
+    leaseId: lease.id,
+    listingId: application.listing.id,
+    ownerId: auth.userId,
+    tenantId: tenant.id
   });
 
   res.json({

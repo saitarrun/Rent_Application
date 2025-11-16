@@ -26,7 +26,8 @@ const listingSchema = z.object({
   externalUrl: z.string().optional(),
   rentEth: z.number().positive(),
   available: z.boolean().optional(),
-  propertyId: z.string().optional()
+  propertyId: z.string().optional(),
+  propertyTemplateId: z.number().int().positive().optional()
 });
 
 router.get('/', async (req, res) => {
@@ -54,6 +55,8 @@ router.post('/', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json(parsed.error.flatten());
   }
+  const propertyId = parsed.data.propertyId && parsed.data.propertyId.trim().length ? parsed.data.propertyId : undefined;
+  const propertyTemplateId = parsed.data.propertyTemplateId ?? undefined;
   const listing = await prisma.listing.create({
     data: {
       ownerId: auth.userId,
@@ -70,7 +73,8 @@ router.post('/', async (req, res) => {
       externalUrl: parsed.data.externalUrl,
       rentEth: new Decimal(parsed.data.rentEth),
       available: parsed.data.available ?? true,
-      propertyId: parsed.data.propertyId
+      propertyId,
+      propertyTemplateId
     }
   });
   res.status(201).json(listing);
@@ -89,10 +93,14 @@ router.patch('/:id', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json(parsed.error.flatten());
   }
+  const propertyId = parsed.data.propertyId && parsed.data.propertyId.trim().length ? parsed.data.propertyId : undefined;
+  const propertyTemplateId = parsed.data.propertyTemplateId ?? listing.propertyTemplateId ?? undefined;
   const updated = await prisma.listing.update({
     where: { id: listing.id },
     data: {
       ...parsed.data,
+      propertyId,
+      propertyTemplateId,
       rentEth: parsed.data.rentEth !== undefined ? new Decimal(parsed.data.rentEth) : listing.rentEth
     }
   });
@@ -108,6 +116,25 @@ router.delete('/:id', async (req, res) => {
   if (!listing || listing.ownerId !== auth.userId) {
     return res.status(404).json({ message: 'Listing not found' });
   }
+  const [applicationsCount, leasesCount] = await Promise.all([
+    prisma.application.count({ where: { listingId: listing.id } }),
+    prisma.lease.count({ where: { listingId: listing.id } })
+  ]);
+
+  if (leasesCount > 0) {
+    return res.status(409).json({
+      message:
+        'Unable to delete this listing because it is linked to one or more leases. Please detach or archive the lease(s) first.'
+    });
+  }
+
+  if (applicationsCount > 0) {
+    return res.status(409).json({
+      message:
+        'Unable to delete this listing because applications exist for it. Reject or archive those applications before deleting.'
+    });
+  }
+
   await prisma.listing.delete({ where: { id: listing.id } });
   res.status(204).end();
 });
@@ -136,7 +163,8 @@ async function upsertListings(req: Request, res: Response) {
         sqft: listing.sqft,
         photoUrl: listing.photoUrl,
         rentEth: listing.rentEth ? new Decimal(listing.rentEth) : undefined,
-        available: listing.available
+        available: listing.available,
+        propertyTemplateId: listing.propertyTemplateId ?? undefined
       },
       create: {
         id: listing.id,
@@ -153,7 +181,8 @@ async function upsertListings(req: Request, res: Response) {
         photoUrl: listing.photoUrl ?? undefined,
         rentEth: listing.rentEth ? new Decimal(listing.rentEth) : new Decimal(0),
         available: listing.available ?? true,
-        source: 'feed'
+        source: 'feed',
+        propertyTemplateId: listing.propertyTemplateId ?? undefined
       }
     });
     synced += 1;
@@ -193,7 +222,8 @@ router.post('/seed-dev', async (req, res) => {
         sqft: record.sqft ?? undefined,
         photoUrl: record.photoUrl ?? undefined,
         rentEth: Number(record.rentEth ?? 0),
-        available: Boolean(record.available ?? true)
+        available: Boolean(record.available ?? true),
+        propertyTemplateId: record.propertyTemplateId ?? record.templateId ?? undefined
       };
 
       await prisma.listing.upsert({
@@ -210,7 +240,8 @@ router.post('/seed-dev', async (req, res) => {
           sqft: listing.sqft,
           photoUrl: listing.photoUrl,
           rentEth: new Decimal(listing.rentEth),
-          available: listing.available
+          available: listing.available,
+          propertyTemplateId: listing.propertyTemplateId
         },
         create: {
           ...listing,

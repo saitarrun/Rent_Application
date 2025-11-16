@@ -10,7 +10,8 @@ router.use(requireAuth);
 
 const propertySchema = z.object({
   name: z.string().min(1),
-  address: z.string().min(1)
+  address: z.string().min(1),
+  propertyTemplateId: z.number().int().positive().optional()
 });
 
 router.get('/', async (req, res) => {
@@ -18,9 +19,11 @@ router.get('/', async (req, res) => {
   if (auth.role !== 'owner' && auth.role !== 'admin') {
     return res.status(403).json({ message: 'Only owners can view properties' });
   }
+  const includeListings = req.query.withListings === 'true';
   const properties = await prisma.property.findMany({
     where: { ownerId: auth.userId },
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    include: includeListings ? { listings: true } : undefined
   });
   res.json(properties);
 });
@@ -38,7 +41,8 @@ router.post('/', async (req, res) => {
     data: {
       ownerId: auth.userId,
       name: parsed.data.name,
-      address: parsed.data.address
+      address: parsed.data.address,
+      propertyTemplateId: parsed.data.propertyTemplateId
     }
   });
   res.status(201).json(property);

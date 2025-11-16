@@ -6,7 +6,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "prisma": "prisma"
+    "prisma": "prisma",
+    "seed": "ts-node scripts/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
