@@ -13,8 +13,8 @@ import app from '../src/index';
 import prisma from '../src/lib/prisma';
 import { issueToken } from '../src/middleware/auth';
 
-const ownerWallet = '0xowner0000000000000000000000000000aaaaaaaa';
-const tenantWallet = '0xtenant0000000000000000000000000000bbbbbb';
+const ownerWallet = '0x1111111111111111111111111111111111111111';
+const tenantWallet = '0x2222222222222222222222222222222222222222';
 
 describe('Apply → approve → pay flow', () => {
   let ownerToken: string;

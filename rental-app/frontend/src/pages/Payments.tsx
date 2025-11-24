@@ -11,6 +11,7 @@ export default function Payments() {
   const { id } = useParams();
   const env = useAppStore((state) => state.environment);
   const role = useAppStore((state) => state.role ?? state.user?.role);
+  const wallet = useAppStore((state) => state.wallet);
   const isTenant = role === 'tenant';
   const pushNotice = useAppStore((state) => state.pushNotice);
   const queryClient = useQueryClient();
@@ -20,6 +21,11 @@ export default function Payments() {
     enabled: Boolean(id)
   });
   if (isLoading || !lease) return <p className="text-muted">Loading…</p>;
+
+  const normalizedLeaseWallet = lease.tenantEth?.toLowerCase() ?? null;
+  const normalizedConnected = wallet?.toLowerCase() ?? null;
+  const tenantWalletMatches =
+    !isTenant || (normalizedLeaseWallet !== null && normalizedConnected !== null && normalizedLeaseWallet === normalizedConnected);
 
   const chainLeaseId = lease.chainLeaseId || lease.id;
   const depositAmount = Number(lease.securityDepositEth ?? lease.depositEth ?? 0);
@@ -41,6 +47,11 @@ export default function Payments() {
 
   const handleDeposit = async () => {
     if (!depositAmount) throw new Error('Deposit amount unavailable');
+    if (isTenant && !tenantWalletMatches) {
+      throw new Error(
+        lease.tenantEth ? `Connect wallet ${lease.tenantEth} to submit payments.` : 'Connect your lease wallet to submit payments.'
+      );
+    }
     await ensureNetwork(env);
     const txHash = await payDeposit(chainLeaseId, depositAmount.toString());
     await logDepositPayment(lease.id, { txHash, amountEth: depositAmount });
@@ -52,6 +63,11 @@ export default function Payments() {
 
   const handleAnnual = async () => {
     if (!annualAmount) throw new Error('Annual rent unavailable');
+    if (isTenant && !tenantWalletMatches) {
+      throw new Error(
+        lease.tenantEth ? `Connect wallet ${lease.tenantEth} to submit payments.` : 'Connect your lease wallet to submit payments.'
+      );
+    }
     await ensureNetwork(env);
     const txHash = await payAnnual(chainLeaseId, annualAmount.toString());
     await logAnnualPayment(lease.id, { txHash, amountEth: annualAmount });
@@ -63,7 +79,15 @@ export default function Payments() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Payments" description={`Lease ${lease.id}`} />
+      <PageHeader
+        title="Payments"
+        description={`Lease ${lease.id}`}
+        breadcrumbs={[
+          { label: 'Agreements', href: '/agreements' },
+          { label: `Lease ${lease.id.slice(0, 6)}`, href: `/agreements/${lease.id}` },
+          { label: 'Payments' }
+        ]}
+      />
       <SectionCard>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-outline bg-surface-1 p-4 shadow-soft space-y-3">
@@ -76,7 +100,26 @@ export default function Payments() {
                 Deposit paid{depositReceipt?.paidAtISO ? ` on ${depositReceipt.paidAtISO.slice(0, 10)}` : ''}
               </p>
             ) : isTenant ? (
-              <TxButton label="Pay deposit" onSend={handleDeposit} className="w-full justify-center" disabled={depositPaid} />
+              <>
+                <TxButton
+                  label={
+                    tenantWalletMatches
+                      ? 'Pay deposit'
+                      : normalizedLeaseWallet
+                        ? `Connect ${lease.tenantEth}`
+                        : 'Connect wallet'
+                  }
+                  onSend={handleDeposit}
+                  className="w-full justify-center"
+                  disabled={depositPaid || !tenantWalletMatches}
+                />
+                {!tenantWalletMatches && (
+                  <p className="text-xs text-danger">
+                    Connected wallet does not match the lease wallet. Switch to{' '}
+                    {lease.tenantEth ? lease.tenantEth : 'your lease wallet'} in MetaMask.
+                  </p>
+                )}
+              </>
             ) : (
               <p className="text-sm text-muted">Waiting for tenant payment</p>
             )}
@@ -92,7 +135,26 @@ export default function Payments() {
                 Rent paid{rentReceipt?.paidAtISO ? ` on ${rentReceipt.paidAtISO.slice(0, 10)}` : ''}
               </p>
             ) : isTenant ? (
-              <TxButton label="Pay annual rent" onSend={handleAnnual} className="w-full justify-center" disabled={annualPaid} />
+              <>
+                <TxButton
+                  label={
+                    tenantWalletMatches
+                      ? 'Pay annual rent'
+                      : normalizedLeaseWallet
+                        ? `Connect ${lease.tenantEth}`
+                        : 'Connect wallet'
+                  }
+                  onSend={handleAnnual}
+                  className="w-full justify-center"
+                  disabled={annualPaid || !tenantWalletMatches}
+                />
+                {!tenantWalletMatches && (
+                  <p className="text-xs text-danger">
+                    Connected wallet does not match the lease wallet. Switch to{' '}
+                    {lease.tenantEth ? lease.tenantEth : 'your lease wallet'} in MetaMask.
+                  </p>
+                )}
+              </>
             ) : (
               <p className="text-sm text-muted">Waiting for tenant payment</p>
             )}

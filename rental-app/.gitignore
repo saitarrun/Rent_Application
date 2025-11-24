@@ -62,3 +62,7 @@ backend/storage/leases/*
 backend/storage/receipts/*
 !backend/storage/leases/.gitkeep
 !backend/storage/receipts/.gitkeep
+
+# Frontend TypeScript build output
+frontend/src/**/*.js
+frontend/tsconfig.tsbuildinfo

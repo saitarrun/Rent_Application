@@ -70,6 +70,10 @@ export default function AgreementDetail() {
       <PageHeader
         title={`Lease ${lease.id.slice(0, 6)}`}
         description={lease.property?.name || 'Lease overview'}
+        breadcrumbs={[
+          { label: 'Agreements', href: '/agreements' },
+          { label: `Lease ${lease.id.slice(0, 6)}` }
+        ]}
         actions={
           <>
             <button

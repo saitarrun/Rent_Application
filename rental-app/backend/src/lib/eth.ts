@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs/promises';
 
 type LeaseOnChainParams = {
+  ownerWallet: string;
   tenantWallet: string;
   annualRentEth: number;
   depositEth: number;
@@ -56,12 +57,17 @@ async function getRentContract() {
 
 export async function createLeaseOnChain(params: LeaseOnChainParams) {
   await loadAbi(); // ensure interface is ready for log parsing
-  const { tenantWallet, annualRentEth, depositEth, startUnix, endUnix } = params;
+  const { ownerWallet, tenantWallet, annualRentEth, depositEth, startUnix, endUnix } = params;
+  if (!ownerWallet) {
+    throw new Error('Owner wallet required for lease creation');
+  }
+  const normalizedOwner = ethers.getAddress(ownerWallet);
+  const normalizedTenant = ethers.getAddress(tenantWallet);
   const { contract, chainId } = await getRentContract();
   const anticipatedLeaseId = Number(await contract.nextLeaseId());
   const rentWei = ethers.parseEther(annualRentEth.toString());
   const depositWei = ethers.parseEther(depositEth.toString());
-  const tx = await contract.createLease(tenantWallet, rentWei, depositWei, BigInt(startUnix), BigInt(endUnix));
+  const tx = await contract.createLease(normalizedTenant, rentWei, depositWei, BigInt(startUnix), BigInt(endUnix));
   const receipt = await tx.wait();
   let chainLeaseId = 0;
   if (receipt?.logs && cachedInterface) {
@@ -80,7 +86,14 @@ export async function createLeaseOnChain(params: LeaseOnChainParams) {
   if (!chainLeaseId && Number.isFinite(anticipatedLeaseId)) {
     chainLeaseId = anticipatedLeaseId;
   }
-  if (!chainLeaseId) throw new Error('LeaseCreated event not found');
+  if (!chainLeaseId) {
+    const current = Number(await contract.nextLeaseId());
+    if (Number.isFinite(current) && current > 0) {
+      chainLeaseId = current - 1;
+    }
+  }
+  if (!Number.isFinite(chainLeaseId)) throw new Error('LeaseCreated event not found');
+  await contract.transferLeaseOwner(BigInt(chainLeaseId), normalizedOwner);
   return { chainLeaseId, txHash: receipt!.hash, chainId };
 }
 
@@ -139,6 +152,13 @@ export async function requestRepairOnChain(leaseId: number, title: string, costE
   const args = parseEvent(receipt, 'RepairRequested');
   const reqId = args?.reqId ? String(args.reqId) : undefined;
   return { txHash: receipt.hash, reqId };
+}
+
+export async function closeLeaseOnChain(chainLeaseId: number) {
+  const { contract, chainId } = await getRentContract();
+  const tx = await contract.closeLease(BigInt(chainLeaseId));
+  const receipt = await tx.wait();
+  return { txHash: receipt.hash, chainId };
 }
 
 export async function setRepairStatusOnChain(leaseId: number, reqId: string, status: string) {

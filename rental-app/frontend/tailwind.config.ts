@@ -11,24 +11,24 @@ const config = {
     },
     extend: {
       colors: {
-        background: 'hsl(222 24% 8%)',
-        foreground: 'hsl(210 20% 98%)',
+        background: '#edf5ff',
+        foreground: '#0f172a',
         surface: {
-          1: 'hsl(222 22% 11%)',
-          2: 'hsl(222 22% 13%)',
-          3: 'hsl(222 22% 16%)'
+          1: '#ffffff',
+          2: '#fdfdff',
+          3: '#e3efff'
         },
         brand: {
-          DEFAULT: 'hsl(258 90% 66%)',
-          hover: 'hsl(258 90% 60%)',
-          subtle: 'hsl(258 60% 22%)',
-          fg: '#fff'
+          DEFAULT: '#1873f0',
+          hover: '#0f5ed0',
+          subtle: '#dbe8ff',
+          fg: '#f6fbff'
         },
-        success: 'hsl(150 70% 45%)',
-        warning: 'hsl(40 95% 55%)',
-        danger: 'hsl(350 85% 55%)',
-        muted: 'hsl(220 8% 60%)',
-        outline: 'hsl(220 12% 20%)'
+        success: '#16a085',
+        warning: '#e7a329',
+        danger: '#d45757',
+        muted: '#5f6b82',
+        outline: '#cfd9ea'
       },
       fontFamily: {
         display: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
@@ -39,8 +39,8 @@ const config = {
         '2xl': '1.25rem'
       },
       boxShadow: {
-        soft: '0 8px 28px -8px rgba(0,0,0,.45)',
-        ring: '0 0 0 1px hsl(220 12% 22%), 0 8px 30px -10px rgba(0,0,0,.55)'
+        soft: '0 18px 60px -30px rgba(15,15,15,0.45)',
+        ring: '0 0 0 1px rgba(0,0,0,0.06), 0 20px 50px rgba(0,0,0,0.08)'
       },
       spacing: {
         13: '3.25rem',

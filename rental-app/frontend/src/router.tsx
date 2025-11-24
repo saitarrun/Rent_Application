@@ -7,13 +7,13 @@ import Agreements from './pages/Agreements';
 import AgreementDetail from './pages/AgreementDetail';
 import Settings from './pages/Settings';
 import PropertyLedger from './pages/PropertyLedger';
-import Listings from './pages/Listings';
 import Applications from './pages/Applications';
 import Payments from './pages/Payments';
 import Repairs from './pages/Repairs';
-import Browse from './pages/Browse';
-import Properties from './pages/Properties';
+import PropertiesPage from './pages/PropertiesPage';
+import NextSteps from './pages/NextSteps';
 import { useAppStore } from './store/useAppStore';
+import ErrorPage from './pages/ErrorPage';
 
 function AuthGuard({ children }: { children: ReactNode }) {
   const token = useAppStore((state) => state.token);
@@ -36,6 +36,7 @@ const router = createBrowserRouter([
   {
     path: '/',
     element: <App />,
+    errorElement: <ErrorPage />,
     children: [
       { index: true, element: <Dashboard /> },
       {
@@ -46,34 +47,14 @@ const router = createBrowserRouter([
           </RoleGuard>
         )
       },
-      {
-        path: 'listings',
-        element: (
-          <RoleGuard role="owner">
-            <Listings />
-          </RoleGuard>
-        )
-      },
-      {
-        path: 'properties',
-        element: (
-          <RoleGuard role="owner">
-            <Properties />
-          </RoleGuard>
-        )
-      },
-      {
-        path: 'browse',
-        element: (
-          <RoleGuard role="tenant">
-            <Browse />
-          </RoleGuard>
-        )
-      },
-      { path: 'browse', element: <Browse /> },
+      { path: 'explore', element: <PropertiesPage /> },
+      { path: 'browse', element: <Navigate to="/explore" replace /> },
+      { path: 'listings', element: <Navigate to="/explore" replace /> },
+      { path: 'properties', element: <Navigate to="/explore?view=portfolio" replace /> },
       { path: 'applications', element: <Applications /> },
       { path: 'agreements', element: <Agreements /> },
       { path: 'agreements/:id', element: <AgreementDetail /> },
+      { path: 'payments', element: <Navigate to="/agreements" replace /> },
       {
         path: 'payments/:id',
         element: (
@@ -90,6 +71,14 @@ const router = createBrowserRouter([
           </AuthGuard>
         )
       },
+      {
+        path: 'next-steps/:id',
+        element: (
+          <AuthGuard>
+            <NextSteps />
+          </AuthGuard>
+        )
+      },
       { path: 'settings', element: <Settings /> },
       {
         path: 'properties/:id/ledger',
@@ -103,7 +92,8 @@ const router = createBrowserRouter([
   },
   {
     path: '/login',
-    element: <App />
+    element: <App />,
+    errorElement: <ErrorPage />
   }
 ]);
 

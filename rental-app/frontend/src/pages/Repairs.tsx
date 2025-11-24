@@ -33,9 +33,26 @@ export default function Repairs() {
     onError: (err: any) => pushNotice('error', err.response?.data?.message || 'Unable to submit repair')
   });
 
+  const depositPaid =
+    lease && Number(lease.depositBalanceEth ?? 0) >= Number(lease.securityDepositEth ?? 0);
+  const annualPaid =
+    lease && lease.receipts?.some((receipt: any) => Number(receipt.paidEth ?? 0) >= Number(lease.annualRentEth ?? 0));
+  const leaseSigned = lease?.tenantSignedAt && lease?.ownerSignedAt;
+  const canSubmitRepair = role === 'tenant' && leaseSigned && depositPaid && annualPaid && lease?.status === 'active';
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Repairs" description={`Lease ${lease?.id || id}`} />
+      <PageHeader
+        title="Repairs"
+        description={`Lease ${lease?.id || id}`}
+        breadcrumbs={[
+          { label: 'Agreements', href: '/agreements' },
+          lease
+            ? { label: `Lease ${lease.id.slice(0, 6)}`, href: `/agreements/${lease.id}` }
+            : { label: 'Lease' },
+          { label: 'Repairs' }
+        ]}
+      />
       {role === 'owner' && (
         <SectionCard>
           <p className="text-sm text-muted">
@@ -46,44 +63,50 @@ export default function Repairs() {
       )}
       {role === 'tenant' && (
         <SectionCard title="Submit a repair">
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              createMutation.mutate();
-            }}
-          >
-            <div>
-              <label className="text-sm text-muted">Title</label>
-              <input
-                className="mt-1 w-full rounded-2xl border border-outline bg-surface-1 px-3 py-2 text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-                value={form.title}
-                onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm text-muted">Detail</label>
-              <textarea
-                className="mt-1 w-full rounded-2xl border border-outline bg-surface-1 px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-                value={form.detail}
-                onChange={(e) => setForm((prev) => ({ ...prev, detail: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="text-sm text-muted">Estimated cost (ETH)</label>
-              <input
-                className="mt-1 w-full rounded-2xl border border-outline bg-surface-1 px-3 py-2 text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-                type="number"
-                step="0.01"
-                value={form.costEth}
-                onChange={(e) => setForm((prev) => ({ ...prev, costEth: e.target.value }))}
-              />
-            </div>
-            <AnimatedButton type="submit" disabled={createMutation.isPending} className="w-full justify-center">
-              {createMutation.isPending ? 'Submitting…' : 'Submit repair'}
-            </AnimatedButton>
-          </form>
+          {canSubmitRepair ? (
+            <form
+              className="space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                createMutation.mutate();
+              }}
+            >
+              <div>
+                <label className="text-sm text-muted">Title</label>
+                <input
+                  className="mt-1 w-full rounded-2xl border border-outline bg-surface-1 px-3 py-2 text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                  value={form.title}
+                  onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted">Detail</label>
+                <textarea
+                  className="mt-1 w-full rounded-2xl border border-outline bg-surface-1 px-3 py-2 text-sm text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                  value={form.detail}
+                  onChange={(e) => setForm((prev) => ({ ...prev, detail: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-sm text-muted">Estimated cost (ETH)</label>
+                <input
+                  className="mt-1 w-full rounded-2xl border border-outline bg-surface-1 px-3 py-2 text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
+                  type="number"
+                  step="0.01"
+                  value={form.costEth}
+                  onChange={(e) => setForm((prev) => ({ ...prev, costEth: e.target.value }))}
+                />
+              </div>
+              <AnimatedButton type="submit" disabled={createMutation.isPending} className="w-full justify-center">
+                {createMutation.isPending ? 'Submitting…' : 'Submit repair'}
+              </AnimatedButton>
+            </form>
+          ) : (
+            <p className="text-sm text-muted">
+              Repair requests unlock once your lease is fully signed and both the deposit and annual rent have been paid.
+            </p>
+          )}
         </SectionCard>
       )}
       <SectionCard title="History">

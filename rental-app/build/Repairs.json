@@ -12734,12 +12734,12 @@
     "1337": {
       "events": {},
       "links": {},
-      "address": "0x0FBe59faeEc58D47a11D8C57c0089F7077ee6dE2",
-      "transactionHash": "0x01004034b7a02c428c45343f0b6b0e5b6e62e3823394fa8a08360b46a8b461d8"
+      "address": "0x15D04901ad16D36fF04d558E858fcC14225c1bf2",
+      "transactionHash": "0x171b424128661b5af059390d3da3dee8c970692f2facdc82087304777bbc95d9"
     }
   },
   "schemaVersion": "3.4.16",
-  "updatedAt": "2025-11-14T06:34:06.483Z",
+  "updatedAt": "2025-11-18T05:31:28.596Z",
   "networkType": "ethereum",
   "devdoc": {
     "kind": "dev",

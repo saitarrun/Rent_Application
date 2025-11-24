@@ -25,6 +25,8 @@ router.post('/nonce', async (req, res) => {
   const { address, role, email } = parsed.data;
   const wallet = address.toLowerCase();
   const selectedRole = role === 'owner' ? 'owner' : 'tenant';
+  const normalizedEmail = email?.trim().toLowerCase();
+  const fallbackTenantEmail = `${wallet}@tenant.rentalsuite`;
 
   let user = await prisma.user.findFirst({ where: { ethAddr: wallet } });
 
@@ -42,12 +44,13 @@ router.post('/nonce', async (req, res) => {
   }
 
   if (!user) {
-    if (!email) {
+    if (selectedRole !== 'tenant' && !normalizedEmail) {
       return res.status(400).json({ message: 'Email is required for first-time login' });
     }
+    const emailToUse = selectedRole === 'tenant' ? normalizedEmail ?? fallbackTenantEmail : normalizedEmail!;
     user = await prisma.user.create({
       data: {
-        email,
+        email: emailToUse,
         role: selectedRole,
         ethAddr: wallet
       }
@@ -57,10 +60,10 @@ router.post('/nonce', async (req, res) => {
     if (!user.ethAddr || user.ethAddr !== wallet) {
       updates.ethAddr = wallet;
     }
-    if (selectedRole === 'tenant' && email && user.email !== email) {
-      const existingEmailOwner = await prisma.user.findUnique({ where: { email } });
+    if (selectedRole === 'tenant' && normalizedEmail && user.email !== normalizedEmail) {
+      const existingEmailOwner = await prisma.user.findUnique({ where: { email: normalizedEmail } });
       if (!existingEmailOwner || existingEmailOwner.id === user.id) {
-        updates.email = email;
+        updates.email = normalizedEmail;
       }
     }
     if (user.role !== selectedRole && selectedRole === 'tenant') {

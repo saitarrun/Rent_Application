@@ -5,6 +5,41 @@ const baseURL = import.meta.env.VITE_API_BASE ?? '/api';
 
 export const api = axios.create({ baseURL });
 
+export type ApplicationOccupantPayload = {
+  name: string;
+  relationship?: string;
+  age?: number;
+};
+
+export type ApplicationDetailsPayload = {
+  legalName: string;
+  email: string;
+  phone: string;
+  birthDate?: string;
+  preferredMoveIn?: string;
+  employmentStatus: string;
+  employerName?: string;
+  annualIncome: number;
+  monthlyIncome?: number;
+  creditScore?: number;
+  occupants: ApplicationOccupantPayload[];
+  notes?: string;
+};
+
+export type ApplicationDocumentPayload = {
+  name: string;
+  type?: string;
+  size?: number;
+  data: string;
+};
+
+export type SubmitApplicationPayload = {
+  listingId: string;
+  message?: string;
+  details: ApplicationDetailsPayload;
+  documents?: ApplicationDocumentPayload[];
+};
+
 api.interceptors.request.use((config) => {
   const token = useAppStore.getState().token;
   if (token) {
@@ -42,6 +77,11 @@ export async function fetchLease(id: string) {
 
 export async function createLease(payload: any) {
   const { data } = await api.post('/leases', payload);
+  return data;
+}
+
+export async function closeLease(id: string) {
+  const { data } = await api.post(`/leases/${id}/close`, {});
   return data;
 }
 
@@ -135,22 +175,22 @@ export async function deleteListing(id: string) {
   await api.delete(`/listings/${id}`);
 }
 
-export async function fetchProperties() {
-  const { data } = await api.get('/properties');
+export async function fetchProperties(params?: { withListings?: boolean }) {
+  const { data } = await api.get('/properties', { params });
   return data;
 }
 
-export async function createProperty(payload: { name: string; address: string }) {
+export async function createProperty(payload: { name: string; address: string; propertyTemplateId?: number | null }) {
   const { data } = await api.post('/properties', payload);
   return data;
 }
 
-export async function updateProperty(id: string, payload: { name?: string; address?: string }) {
+export async function updateProperty(id: string, payload: { name?: string; address?: string; propertyTemplateId?: number | null }) {
   const { data } = await api.patch(`/properties/${id}`, payload);
   return data;
 }
 
-export async function submitApplication(payload: { listingId: string; message?: string; phone?: string }) {
+export async function submitApplication(payload: SubmitApplicationPayload) {
   const { data } = await api.post('/applications', payload);
   return data;
 }

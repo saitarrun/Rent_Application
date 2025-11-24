@@ -16,7 +16,7 @@ async function main() {
     data: {
       email: 'owner@rentalsuite.com',
       role: 'owner',
-      ethAddr: '0xowner000000000000000000000000000000000000'
+      ethAddr: '0x1111111111111111111111111111111111111111'
     }
   });
 
@@ -24,7 +24,7 @@ async function main() {
     data: {
       email: 'tenant@rentalsuite.com',
       role: 'tenant',
-      ethAddr: '0xtenant0000000000000000000000000000000000'
+      ethAddr: '0x2222222222222222222222222222222222222222'
     }
   });
 

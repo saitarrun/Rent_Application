@@ -19,6 +19,8 @@ contract RENT {
 
     event LeaseCreated(uint256 indexed id, address indexed tenant, address indexed owner);
     event LeaseSigned(uint256 indexed id, address tenant);
+    event LeaseActivated(uint256 indexed id, uint256 time);
+    event LeaseTerminated(uint256 indexed id, address indexed owner);
     event DepositPaid(uint256 indexed id, uint256 amount, uint256 time);
     event AnnualRentPaid(uint256 indexed id, uint256 amount, uint256 time);
     event RepairRequested(uint256 indexed id, bytes32 reqId, string title, uint256 cost);
@@ -70,9 +72,18 @@ contract RENT {
         require(msg.value == lease.rentWei, "Incorrect amount");
         if (!lease.active) {
             lease.active = true;
+            emit LeaseActivated(leaseId, block.timestamp);
         }
         _forward(lease.owner, msg.value);
         emit AnnualRentPaid(leaseId, msg.value, block.timestamp);
+    }
+
+    function closeLease(uint256 leaseId) external {
+        Lease storage lease = leases[leaseId];
+        require(lease.owner == msg.sender, "Not owner");
+        require(lease.active, "Lease already inactive");
+        lease.active = false;
+        emit LeaseTerminated(leaseId, msg.sender);
     }
 
     function requestRepair(uint256 leaseId, string calldata title, uint256 cost) external returns (bytes32 reqId) {
@@ -90,6 +101,21 @@ contract RENT {
 
     function getLease(uint256 leaseId) external view returns (Lease memory) {
         return leases[leaseId];
+    }
+
+    function leaseOwner(uint256 leaseId) external view returns (address) {
+        return leases[leaseId].owner;
+    }
+
+    function leaseTenant(uint256 leaseId) external view returns (address) {
+        return leases[leaseId].tenant;
+    }
+
+    function transferLeaseOwner(uint256 leaseId, address newOwner) external {
+        require(newOwner != address(0), "Owner required");
+        Lease storage lease = leases[leaseId];
+        require(msg.sender == lease.owner, "Not current owner");
+        lease.owner = newOwner;
     }
 
     function _forward(address to, uint256 amount) internal {

@@ -167,7 +167,12 @@ router.patch('/:id/approve', async (req, res) => {
   const startUnix = Math.floor(Date.now() / 1000);
   const endUnix = startUnix + 365 * 24 * 60 * 60;
 
+  if (!auth.ethAddr) {
+    return res.status(400).json({ message: 'Owner wallet is not linked to this account' });
+  }
+
   const chain = await createLeaseOnChain({
+    ownerWallet: auth.ethAddr,
     tenantWallet: application.wallet,
     annualRentEth: Number(annualRent.toString()),
     depositEth: Number(depositEth.toString()),

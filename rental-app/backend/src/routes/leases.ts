@@ -6,7 +6,7 @@ import prisma, { ensureProfileSeed } from '../lib/prisma';
 import { buildInvoicePayload } from '../lib/invoiceService';
 import { persistPdf } from '../lib/pdf';
 import { sendMail } from '../lib/mailer';
-import { signLeaseOnChain } from '../lib/eth';
+import { closeLeaseOnChain, signLeaseOnChain } from '../lib/eth';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -412,6 +412,39 @@ router.post('/:id/pay/annual', async (req, res) => {
   });
 
   res.json({ message: 'Annual payment logged', lease: updated });
+});
+
+router.post('/:id/close', async (req, res) => {
+  const auth = req.auth!;
+  const lease = await prisma.lease.findUnique({ where: { id: req.params.id } });
+  if (!lease) return res.status(404).json({ message: 'Lease not found' });
+  if (lease.ownerId !== auth.userId) {
+    return res.status(403).json({ message: 'Only the lease owner can close it' });
+  }
+  if (lease.status === 'closed') {
+    return res.json({ message: 'Lease already closed', lease });
+  }
+
+  let txHash: string | undefined;
+  if (lease.chainLeaseId) {
+    try {
+      const result = await closeLeaseOnChain(lease.chainLeaseId);
+      txHash = result.txHash;
+    } catch (err: any) {
+      return res.status(502).json({ message: err?.message || 'Unable to close lease on-chain' });
+    }
+  }
+
+  const updateData: Record<string, any> = { status: 'closed' };
+  if (txHash) {
+    updateData.txHash = txHash;
+    updateData.chainId = lease.chainId || getChainId();
+  }
+  const updated = await prisma.lease.update({
+    where: { id: lease.id },
+    data: updateData
+  });
+  res.json({ message: 'Lease closed', lease: updated, txHash });
 });
 
 export default router;

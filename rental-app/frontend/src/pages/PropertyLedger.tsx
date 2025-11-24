@@ -12,7 +12,15 @@ export default function PropertyLedger() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={`Ledger for ${data.property.name}`} description="Track dues and receipts per lease." />
+      <PageHeader
+        title={`Ledger for ${data.property.name}`}
+        description="Track dues and receipts per lease."
+        breadcrumbs={[
+          { label: 'Explore', href: '/explore?view=portfolio' },
+          { label: data.property.name },
+          { label: 'Ledger' }
+        ]}
+      />
       <SectionCard>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">

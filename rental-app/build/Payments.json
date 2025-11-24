@@ -7418,12 +7418,12 @@
     "1337": {
       "events": {},
       "links": {},
-      "address": "0xe2A171A9051662e30a77E07D4aBf75eeD8151839",
-      "transactionHash": "0x3a93f3a28fe7c8fc62a1b3516806f5e90399f8f86366ea04a97ce771f2629c6c"
+      "address": "0xeB3526eA93944E4EFBF9b376568c043092C45Db7",
+      "transactionHash": "0x984e026e18dce17a6324b29e4694433ea889aad20923959912524e4a916b7c85"
     }
   },
   "schemaVersion": "3.4.16",
-  "updatedAt": "2025-11-14T06:34:06.479Z",
+  "updatedAt": "2025-11-18T05:31:28.588Z",
   "networkType": "ethereum",
   "devdoc": {
     "kind": "dev",

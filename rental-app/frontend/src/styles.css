@@ -12,7 +12,13 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
     min-height: 100vh;
+    background-color: theme('colors.background');
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(219, 232, 255, 0.9), transparent 55%),
+      radial-gradient(circle at 80% 0%, rgba(148, 216, 255, 0.55), transparent 50%),
+      linear-gradient(135deg, rgba(237, 245, 255, 1), rgba(249, 252, 255, 0.65));
+    background-attachment: fixed;
   }
 }
