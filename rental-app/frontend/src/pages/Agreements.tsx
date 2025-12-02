@@ -112,17 +112,11 @@ export default function Agreements() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-wrap items-center justify-end gap-3 text-sm">
-                            <Link
+                        <Link
                               to={`/agreements/${lease.id}`}
                               className="font-semibold text-brand hover:text-brand-hover"
                             >
                               Details
-                            </Link>
-                            <Link
-                              to={`/repairs/${lease.id}`}
-                              className="text-muted underline-offset-4 hover:underline"
-                            >
-                              Repairs
                             </Link>
                             {renderCloseButton(lease)}
                           </div>
@@ -172,9 +166,6 @@ export default function Agreements() {
                   <div className="mt-3 flex flex-wrap gap-3 text-sm">
                     <Link to={`/agreements/${lease.id}`} className="text-brand font-semibold">
                       View
-                    </Link>
-                    <Link to={`/repairs/${lease.id}`} className="text-muted underline-offset-4 hover:underline">
-                      Repairs
                     </Link>
                     {renderCloseButton(lease)}
                   </div>

@@ -136,13 +136,6 @@ export default function Applications() {
         <button
           className="text-sm text-muted underline-offset-4 hover:underline"
           type="button"
-          onClick={() => navigate(`/payments/${lease.id}`)}
-        >
-          Payments
-        </button>
-        <button
-          className="text-sm text-muted underline-offset-4 hover:underline"
-          type="button"
           onClick={() => navigate(`/next-steps/${lease.id}`)}
         >
           Next steps

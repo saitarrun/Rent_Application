@@ -219,6 +219,7 @@ router.patch('/:id/approve', async (req, res) => {
       depositBalanceEth: new Decimal(0),
       notes: application.message,
       status: 'pending',
+      ownerSignedAt: new Date(),
       dueDay: 1
     }
   });

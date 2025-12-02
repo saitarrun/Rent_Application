@@ -54,13 +54,20 @@ const router = createBrowserRouter([
       { path: 'applications', element: <Applications /> },
       { path: 'agreements', element: <Agreements /> },
       { path: 'agreements/:id', element: <AgreementDetail /> },
-      { path: 'payments', element: <Navigate to="/agreements" replace /> },
+      {
+        path: 'payments',
+        element: (
+          <AuthGuard>
+            <Payments />
+          </AuthGuard>
+        )
+      },
       {
         path: 'payments/:id',
         element: (
-          <RoleGuard role="tenant">
+          <AuthGuard>
             <Payments />
-          </RoleGuard>
+          </AuthGuard>
         )
       },
       {

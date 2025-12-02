@@ -64,6 +64,10 @@ export default function AgreementDetail() {
 
   const canTenantSign = role === 'tenant' && !lease.tenantSignedAt;
   const canOwnerSign = role === 'owner' && !lease.ownerSignedAt;
+  const depositInvoiceId = `deposit-${lease.id}`;
+  const receipts = lease.receipts || [];
+  const depositReceipt = receipts.find((r: any) => r.invoiceId === depositInvoiceId);
+  const rentReceipts = receipts.filter((r: any) => r.invoiceId !== depositInvoiceId);
 
   return (
     <div className="space-y-4">
@@ -105,10 +109,6 @@ export default function AgreementDetail() {
           <div>
             <p className="text-muted">Security deposit (ETH)</p>
             <p className="text-lg font-semibold text-foreground">{lease.securityDepositEth}</p>
-          </div>
-          <div>
-            <p className="text-muted">Deposit balance</p>
-            <p className="text-lg font-semibold text-foreground">{lease.depositBalanceEth ?? '0'}</p>
           </div>
           <div>
             <p className="text-muted">Start / End</p>
@@ -174,7 +174,47 @@ export default function AgreementDetail() {
         </div>
         <div className="mt-4">
           {tab === 'payments' ? (
-            <PaymentsTable leaseId={lease.id} invoices={lease.invoices || []} />
+            <SectionCard title="Payment history" description="Security deposit and rent receipts for this lease.">
+              {depositReceipt || rentReceipts.length ? (
+                <ul className="space-y-2 text-sm">
+                  {depositReceipt && (
+                    <li className="flex items-center justify-between rounded-xl border border-outline px-3 py-2">
+                      <div>
+                        <p className="font-medium text-foreground">{Number(depositReceipt.paidEth)} ETH</p>
+                        <p className="text-xs text-muted">
+                          {depositReceipt.paidAtISO?.slice(0, 10) || '—'} • Security deposit
+                        </p>
+                      </div>
+                      {depositReceipt.txHash && (
+                        <code className="text-xs font-mono text-muted" title={depositReceipt.txHash}>
+                          {depositReceipt.txHash.slice(0, 8)}…
+                        </code>
+                      )}
+                    </li>
+                  )}
+                  {rentReceipts.map((receipt: any) => (
+                    <li
+                      key={receipt.id}
+                      className="flex items-center justify-between rounded-xl border border-outline px-3 py-2"
+                    >
+                      <div>
+                        <p className="font-medium text-foreground">{Number(receipt.paidEth)} ETH</p>
+                        <p className="text-xs text-muted">
+                          {receipt.paidAtISO?.slice(0, 10) || '—'} • Rent
+                        </p>
+                      </div>
+                      {receipt.txHash && (
+                        <code className="text-xs font-mono text-muted" title={receipt.txHash}>
+                          {receipt.txHash.slice(0, 8)}…
+                        </code>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted">No payments recorded for this lease yet.</p>
+              )}
+            </SectionCard>
           ) : (
             <RepairsTable leaseId={lease.id} repairs={lease.repairs || []} />
           )}

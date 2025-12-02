@@ -1,22 +1,28 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAppStore, type Environment } from '../store/useAppStore';
 import { WalletStatus } from './WalletStatus';
+import { fetchLeases } from '../lib/api';
 
 type NavLinkItem = { label: string; path: string };
 
 const ownerLinks: NavLinkItem[] = [
   { label: 'Overview', path: '/' },
   { label: 'Portfolio', path: '/explore?view=portfolio' },
-  { label: 'Applications', path: '/applications' },
   { label: 'Agreements', path: '/agreements' },
+  { label: 'Applications', path: '/applications' },
+  { label: 'Payments', path: '/payments' },
+  { label: 'Repairs', path: '/repairs' },
   { label: 'Settings', path: '/settings' }
 ];
 
 const tenantLinks: NavLinkItem[] = [
   { label: 'Overview', path: '/' },
-  { label: 'Browse listings', path: '/explore' },
-  { label: 'Applications', path: '/applications' },
+  { label: 'Portfolio', path: '/explore' }, // keep placeholder for consistent ordering label
   { label: 'Agreements', path: '/agreements' },
+  { label: 'Applications', path: '/applications' },
+  { label: 'Payments', path: '/payments' },
+  { label: 'Repairs', path: '/repairs' },
   { label: 'Settings', path: '/settings' }
 ];
 
@@ -61,13 +67,55 @@ export default function Navbar() {
   const token = useAppStore((state) => state.token);
   const role = useAppStore((state) => state.role);
   const logout = useAppStore((state) => state.logout);
+  const pushNotice = useAppStore((state) => state.pushNotice);
+  const navigate = useNavigate();
   const location = useLocation();
 
   if (!token) return null;
 
   const links = useNavLinks(role);
   // promote a small set of primary links for easier discovery
-  const primaryLabels = ['Agreements', 'Payments', 'Repairs', 'Browse listings', 'Portfolio'];
+  const primaryLabels = ['Agreements', 'Payments', 'Repairs', 'Portfolio'];
+
+  const { data: leases = [] } = useQuery({ queryKey: ['leases'], queryFn: fetchLeases, enabled: Boolean(token) });
+
+  const depositPaid = (lease: any) => {
+    const depositAmount = Number(lease?.securityDepositEth ?? lease?.depositEth ?? 0);
+    const invoices = lease?.invoices ?? [];
+    const receipts = lease?.receipts ?? [];
+    const depositInvoiceId = lease ? `deposit-${lease.id}` : '';
+    const depositInvoice = invoices.find((invoice: any) => invoice.id === depositInvoiceId);
+    const depositReceipt = receipts.find((receipt: any) => receipt.invoiceId === depositInvoiceId);
+    return (
+      depositAmount === 0 ||
+      Number(lease?.depositBalanceEth ?? 0) >= depositAmount ||
+      depositInvoice?.status === 'paid' ||
+      Boolean(depositReceipt)
+    );
+  };
+  const annualPaid = (lease: any) => {
+    const annualAmount = Number(lease?.annualRentEth ?? 0);
+    const invoices = lease?.invoices ?? [];
+    const receipts = lease?.receipts ?? [];
+    const depositInvoiceId = lease ? `deposit-${lease.id}` : '';
+    return (
+      annualAmount === 0 ||
+      invoices.some((invoice: any) => invoice.status === 'paid' && invoice.id !== depositInvoiceId) ||
+      receipts.some((receipt: any) => receipt.invoiceId !== depositInvoiceId)
+    );
+  };
+
+  const eligibleRepairLease =
+    role === 'owner'
+      ? leases[0]
+      : leases.find((lease: any) => lease.status === 'active' && depositPaid(lease) && annualPaid(lease));
+  const repairsPath = eligibleRepairLease ? `/repairs/${eligibleRepairLease.id}` : null;
+
+  const paymentsLease =
+    role === 'owner'
+      ? null
+      : leases.find((lease: any) => lease.status === 'active') || leases[0];
+  const paymentsPath = role === 'owner' ? '/payments' : paymentsLease ? `/payments/${paymentsLease.id}` : null;
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -113,10 +161,8 @@ export default function Navbar() {
           <nav className="flex flex-wrap items-center gap-2 text-sm">
             {links
               .sort((a, b) => {
-                // Enforce explicit user-desired ordering: tenant gets Overview, Browse listings, Applications, Agreements, Settings
-                // Owner gets Overview, Portfolio, Applications, Agreements, Settings
-                const tenantOrder = ['Overview', 'Browse listings', 'Applications', 'Agreements', 'Settings'];
-                const ownerOrder = ['Overview', 'Portfolio', 'Applications', 'Agreements', 'Settings'];
+                const tenantOrder = ['Overview', 'Portfolio', 'Agreements', 'Applications', 'Payments', 'Repairs', 'Settings'];
+                const ownerOrder = ['Overview', 'Portfolio', 'Agreements', 'Applications', 'Payments', 'Repairs', 'Settings'];
                 const desiredOrder = role === 'tenant' ? tenantOrder : ownerOrder;
                 const ia = desiredOrder.indexOf(a.label);
                 const ib = desiredOrder.indexOf(b.label);
@@ -127,18 +173,45 @@ export default function Navbar() {
               .map((link) => {
                 const active = isActive(link.path);
                 const isPrimary = primaryLabels.includes(link.label);
+                const isRepairs = link.label === 'Repairs';
+                const isPayments = link.label === 'Payments';
+                const isPortfolioPlaceholder = link.label === 'Portfolio' && role === 'tenant';
+                const disabledRepairs = isRepairs && !repairsPath;
+                const to = isRepairs && repairsPath ? repairsPath : isPayments && paymentsPath ? paymentsPath : isPortfolioPlaceholder ? '/explore' : link.path;
                 return (
                   <Link
                     key={link.path}
-                    to={link.path}
+                    to={to}
                     className={`rounded-full px-4 py-2 transition ${
                       active
                         ? 'bg-brand/10 text-brand shadow-[inset_0_0_0_1px_rgba(24,115,240,0.35)] font-semibold'
+                        : disabledRepairs
+                        ? 'cursor-not-allowed bg-surface-2 text-muted opacity-70'
+                        : isPayments && !paymentsPath
+                        ? 'cursor-not-allowed bg-surface-2 text-muted opacity-70'
                         : isPrimary
                         ? 'bg-surface-2 text-foreground hover:bg-surface-3 font-normal'
                         : 'text-muted hover:text-foreground hover:bg-surface-2 font-normal'
                     }`}
                     aria-current={active ? 'page' : undefined}
+                    onClick={(e) => {
+                      if (disabledRepairs) {
+                        e.preventDefault();
+                        pushNotice(
+                          'info',
+                          'Repairs unlock once your security deposit and annual rent are paid.'
+                        );
+                      } else if (isPayments && !paymentsPath) {
+                        e.preventDefault();
+                        pushNotice('info', 'Payments will appear once a lease is available.');
+                      } else if (isPayments && paymentsPath) {
+                        e.preventDefault();
+                        navigate(paymentsPath);
+                      } else if (isRepairs && repairsPath) {
+                        e.preventDefault();
+                        navigate(repairsPath);
+                      }
+                    }}
                   >
                     {link.label}
                   </Link>

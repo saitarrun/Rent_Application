@@ -39,29 +39,27 @@ const PaymentsTable: FC<Props> = ({ leaseId, invoices }) => {
           </tr>
         </thead>
         <tbody>
-          {invoices.map((invoice) => (
-            <tr key={invoice.id} className="border-t border-outline/40">
-              <td className="p-2 text-foreground">
-                {invoice.periodStartISO.slice(0, 10)} → {invoice.periodEndISO.slice(0, 10)}
-              </td>
-              <td className="p-2 text-muted">{invoice.dueISO.slice(0, 10)}</td>
-              <td className="p-2 text-foreground">{invoice.amountEth}</td>
-              <td className="p-2">
-                <span
-                  className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                    invoice.status === 'paid' ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'
-                  }`}
-                >
-                  {invoice.status}
-                </span>
-              </td>
-              <td className="p-2 text-right">
-                {role === 'tenant' && invoice.status !== 'paid' && (
-                  <TxButton label="Pay now" onSend={() => payInvoice(invoice.id)} className="text-sm px-4 py-1.5" />
-                )}
-              </td>
-            </tr>
-          ))}
+      {invoices.map((invoice) => (
+        <tr key={invoice.id} className="border-t border-outline/40">
+          <td className="p-2 text-foreground">
+            {invoice.periodStartISO.slice(0, 10)} → {invoice.periodEndISO.slice(0, 10)}
+          </td>
+          <td className="p-2 text-muted">{invoice.dueISO.slice(0, 10)}</td>
+          <td className="p-2 text-foreground">{invoice.amountEth}</td>
+          <td className="p-2">
+            <span
+              className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                invoice.status === 'paid' ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'
+              }`}
+            >
+              {invoice.status}
+            </span>
+          </td>
+          <td className="p-2 text-right">
+            {/* Invoice payments are managed on the Payments page; hide inline pay button here */}
+          </td>
+        </tr>
+      ))}
         </tbody>
       </table>
     </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchLease, logAnnualPayment, logDepositPayment } from '../lib/api';
+import { fetchLease, fetchLeases, logAnnualPayment, logDepositPayment } from '../lib/api';
 import { ensureNetwork, payAnnual, payDeposit } from '../lib/eth';
 import { useAppStore } from '../store/useAppStore';
 import PageHeader from '../components/PageHeader';
@@ -18,11 +18,66 @@ export default function Payments() {
   const isTenant = role === 'tenant';
   const pushNotice = useAppStore((state) => state.pushNotice);
   const queryClient = useQueryClient();
-  const { data: lease, isLoading } = useQuery({
+  const { data: lease, isLoading, refetch } = useQuery({
     queryKey: ['lease', id],
     queryFn: () => fetchLease(id as string),
     enabled: Boolean(id)
   });
+  const { data: ownerLeases = [], isLoading: loadingLeases } = useQuery({
+    queryKey: ['leases'],
+    queryFn: fetchLeases,
+    enabled: role === 'owner' && !id
+  });
+
+  if (role === 'owner' && !id) {
+    if (loadingLeases) return <p className="text-muted">Loading…</p>;
+    const flattenedReceipts = ownerLeases
+      .flatMap((l: any) => (l.receipts || []).map((r: any) => ({ ...r, lease: l })))
+      .sort((a: any, b: any) => (a.paidAtISO > b.paidAtISO ? -1 : 1));
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Payments"
+          description="All tenant payments across your leases."
+          breadcrumbs={[{ label: 'Payments' }]}
+        />
+        <SectionCard title="Receipts">
+          {flattenedReceipts.length ? (
+            <div role="region" aria-label="All tenant receipts">
+              <ul className="space-y-2 text-sm">
+                {flattenedReceipts.map((receipt: any) => (
+                  <li
+                    key={receipt.id}
+                    className="flex items-center justify-between rounded-xl border border-outline px-3 py-2"
+                    aria-label={`Payment of ${receipt.paidEth} ETH on ${receipt.paidAtISO?.slice(0, 10)} for lease ${receipt.lease?.id}`}
+                  >
+                    <div>
+                      <p className="font-medium text-foreground">{Number(receipt.paidEth)} ETH</p>
+                      <p className="text-xs text-muted">
+                        {receipt.paidAtISO?.slice(0, 10) || '—'} • Lease {receipt.lease?.id || '-'} •{' '}
+                        {receipt.invoiceId === `deposit-${receipt.lease?.id}` ? 'Security deposit' : 'Rent'}
+                      </p>
+                      <p className="text-xs text-muted">
+                        Tenant: {receipt.lease?.tenant?.email || receipt.lease?.tenantId || '—'}
+                      </p>
+                    </div>
+                    {receipt.txHash && (
+                      <code className="text-xs font-mono text-muted" title={receipt.txHash}>
+                        {receipt.txHash.slice(0, 8)}…
+                      </code>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">No payments recorded yet.</p>
+          )}
+        </SectionCard>
+      </div>
+    );
+  }
+
   if (isLoading || !lease) return <p className="text-muted">Loading…</p>;
 
   const [payAllPending, setPayAllPending] = useState(false);
@@ -266,42 +321,47 @@ export default function Payments() {
           </div>
         )}
 
-        <article className="rounded-2xl border border-outline bg-surface-1 p-4 shadow-soft">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-medium text-muted">Available Deposit Balance</h3>
-            <Tooltip content="Current available balance from your security deposit. Decreases when repairs are deducted by the owner." side="right">
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand/10 text-xs text-brand cursor-help" role="img" aria-label="Help">
-                ?
-              </span>
-            </Tooltip>
-          </div>
-          <p className="text-lg font-semibold text-foreground" aria-label={`Current deposit balance: ${lease.depositBalanceEth ?? '0'} ETH`}>
-            {lease.depositBalanceEth ?? '0'}
-            <span className="text-sm text-muted ml-2">ETH</span>
-          </p>
-        </article>
       </SectionCard>
-      <SectionCard title="Payment history" description="Receipts logged for this lease.">
-        {receipts.length ? (
+      <SectionCard title="Payment history" description="Security deposit and annual rent receipts.">
+        {depositReceipt || rentReceipt ? (
           <div role="region" aria-label="Payment receipts list">
             <ul className="space-y-2 text-sm">
-              {[...receipts]
-                .sort((a: any, b: any) => (a.paidAtISO > b.paidAtISO ? -1 : 1))
-                .map((receipt: any) => (
-                  <li
-                    key={receipt.id}
-                    className="flex items-center justify-between rounded-xl border border-outline px-3 py-2"
-                    aria-label={`Payment of ${receipt.paidEth} ETH on ${receipt.paidAtISO?.slice(0, 10)}`}
-                  >
-                    <div>
-                      <p className="font-medium text-foreground">{Number(receipt.paidEth)} ETH</p>
-                      <p className="text-xs text-muted">{receipt.paidAtISO?.slice(0, 10)} • {receipt.invoiceId}</p>
-                    </div>
-                    <code className="text-xs font-mono text-muted" title={receipt.txHash}>
-                      {receipt.txHash.slice(0, 8)}…
+              {depositReceipt && (
+                <li
+                  className="flex items-center justify-between rounded-xl border border-outline px-3 py-2"
+                  aria-label={`Security deposit of ${depositReceipt.paidEth} ETH on ${depositReceipt.paidAtISO?.slice(0, 10)}`}
+                >
+                  <div>
+                    <p className="font-medium text-foreground">{Number(depositReceipt.paidEth)} ETH</p>
+                    <p className="text-xs text-muted">
+                      {depositReceipt.paidAtISO?.slice(0, 10) || '—'} • Security deposit
+                    </p>
+                  </div>
+                  {depositReceipt.txHash && (
+                    <code className="text-xs font-mono text-muted" title={depositReceipt.txHash}>
+                      {depositReceipt.txHash.slice(0, 8)}…
                     </code>
-                  </li>
-                ))}
+                  )}
+                </li>
+              )}
+              {rentReceipt && (
+                <li
+                  className="flex items-center justify-between rounded-xl border border-outline px-3 py-2"
+                  aria-label={`Annual rent of ${rentReceipt.paidEth} ETH on ${rentReceipt.paidAtISO?.slice(0, 10)}`}
+                >
+                  <div>
+                    <p className="font-medium text-foreground">{Number(rentReceipt.paidEth)} ETH</p>
+                    <p className="text-xs text-muted">
+                      {rentReceipt.paidAtISO?.slice(0, 10) || '—'} • Annual rent
+                    </p>
+                  </div>
+                  {rentReceipt.txHash && (
+                    <code className="text-xs font-mono text-muted" title={rentReceipt.txHash}>
+                      {rentReceipt.txHash.slice(0, 8)}…
+                    </code>
+                  )}
+                </li>
+              )}
             </ul>
           </div>
         ) : (
