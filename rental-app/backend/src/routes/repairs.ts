@@ -50,8 +50,38 @@ router.post('/:leaseId', async (req, res) => {
   if (lease.tenantId !== auth.userId) {
     return res.status(403).json({ message: 'Forbidden' });
   }
+  // Ensure repairs can only be submitted for active leases (prevent clients from bypassing frontend guards)
+  if ((lease as any).status && (lease as any).status !== 'active') {
+    return res.status(403).json({ message: 'Repairs are only allowed for active leases' });
+  }
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error.flatten());
+  // Fetch full lease to validate deposit and annual payments server-side
+  const fullLease = await prisma.lease.findUnique({
+    where: { id: lease.id },
+    include: { receipts: true }
+  });
+  if (!fullLease) return res.status(404).json({ message: 'Lease not found' });
+
+  // Enforce deposit paid: either sufficient deposit balance or deposit receipt exists
+  const depositAmount = Number((fullLease as any).securityDepositEth ?? (fullLease as any).depositEth ?? 0);
+  const depositBalance = Number((fullLease as any).depositBalanceEth ?? 0);
+  const depositInvoiceId = `deposit-${fullLease.id}`;
+  const hasDepositReceipt = (fullLease.receipts || []).some((r: any) => r.invoiceId === depositInvoiceId);
+  if (depositAmount > 0 && depositBalance < depositAmount && !hasDepositReceipt) {
+    return res.status(403).json({ message: 'Deposit must be paid before submitting repairs' });
+  }
+
+  // Enforce annual rent paid (at least one non-deposit receipt covering annual amount)
+  const annualAmount = Number((fullLease as any).annualRentEth ?? 0);
+  if (annualAmount > 0) {
+    const nonDepositReceipts = (fullLease.receipts || []).filter((r: any) => r.invoiceId !== depositInvoiceId);
+    const totalPaidNonDeposit = nonDepositReceipts.reduce((sum: number, r: any) => sum + Number(r.paidEth ?? 0), 0);
+    if (totalPaidNonDeposit < annualAmount) {
+      return res.status(403).json({ message: 'Annual rent must be paid before submitting repairs' });
+    }
+  }
+
   let repair = await prisma.repair.create({
     data: {
       leaseId: lease.id,

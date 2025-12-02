@@ -14,7 +14,7 @@ type PropertyGridProps = {
   isOwnerView?: boolean;
   publishedLookup?: Map<number, boolean>;
   listingLookup?: Map<number, any>;
-  onPublishListing?: (property: Property) => void;
+  onPublishListing?: (property: Property, listingId?: string) => void;
   onUnpublishListing?: (property: Property, listingId: string) => void;
   publishingKey?: string;
   unpublishingKey?: string;
@@ -71,10 +71,14 @@ export function PropertyGrid({
             isOwnerView={isOwnerView}
             isPublished={publishedLookup?.get(property.id) ?? false}
             onPublishListing={
-              onPublishListing && !listing ? () => onPublishListing(property) : undefined
+              onPublishListing && (!listing || (listing && listing.available === false))
+                ? () => onPublishListing(property, listing?.id)
+                : undefined
             }
             onUnpublishListing={
-              onUnpublishListing && listing ? () => onUnpublishListing(property, listing.id) : undefined
+              onUnpublishListing && listing && typeof listing.id === 'string' && !listing.id.startsWith('temp-')
+                ? () => onUnpublishListing(property, listing.id)
+                : undefined
             }
             publishLoading={Boolean(publishingKey && publishingKey === propertyKey)}
             unpublishLoading={Boolean(unpublishingKey && unpublishingKey === propertyKey)}

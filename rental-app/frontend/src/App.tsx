@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Shield, Wallet } from 'lucide-react';
 import Navbar from './components/Navbar';
+import { OnboardingModal } from './components/OnboardingModal';
 import { requestNonce, verifyWallet } from './lib/api';
 import { useAppStore } from './store/useAppStore';
 import { Toaster } from 'react-hot-toast';
@@ -10,6 +11,7 @@ import { NetworkGuard } from './components/NetworkGuard';
 import { AnimatedButton } from './components/AnimatedButton';
 
 const roles: Array<'owner' | 'tenant'> = ['owner', 'tenant'];
+const DEFAULT_OWNER_EMAIL = 'owner@rentalsuite.com';
 
 export default function App() {
   const token = useAppStore((state) => state.token);
@@ -17,7 +19,7 @@ export default function App() {
   const setRoleState = useAppStore((state) => state.setRole);
   const notices = useAppStore((state) => state.notices);
   const dismiss = useAppStore((state) => state.dismissNotice);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(DEFAULT_OWNER_EMAIL);
   const [role, setRole] = useState<'owner' | 'tenant'>('owner');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,6 +180,7 @@ export default function App() {
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <Toaster position="top-right" />
+      <OnboardingModal />
       <NetworkGuard />
       <Navbar />
       <main className="container py-10">

@@ -311,21 +311,21 @@ export default function Dashboard() {
           title={ownerView ? 'Outstanding invoices' : 'My invoices'}
           description={ownerView ? 'Top invoices that still need payment.' : 'Invoices assigned to you.'}
         >
-          <ul className="space-y-2 text-sm text-foreground">
+          <ul className="space-y-3 text-sm text-foreground">
             {upcomingInvoices.map((invoice: any) => (
               <li
                 key={invoice.id}
-                className="flex items-center justify-between rounded-2xl border border-white/70 bg-white/90 px-4 py-3 shadow-[0_12px_25px_rgba(12,42,89,0.08)]"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[22px] border border-white/80 bg-white/95 px-5 py-4 shadow-[0_18px_40px_rgba(12,42,89,0.12)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(12,42,89,0.16)]"
               >
-                <div>
-                  <p className="font-medium">{invoice.amountEth} ETH</p>
-                  <p className="text-xs text-muted">Due {dayjs(invoice.dueISO).format('MMM D')}</p>
+                <div className="min-w-0 space-y-1">
+                  <p className="text-base font-semibold text-[#0f2343]">{invoice.amountEth} ETH</p>
+                  <p className="text-sm text-muted">Due {dayjs(invoice.dueISO).format('MMM D')}</p>
                 </div>
-                <span className="text-xs uppercase text-muted">{invoice.status}</span>
+                <span className="text-xs uppercase tracking-[0.14em] text-muted">{invoice.status}</span>
               </li>
             ))}
             {!upcomingInvoices.length && (
-              <li>
+              <li className="rounded-[22px] border border-dashed border-outline/60 bg-white/80 px-5 py-4">
                 <EmptyState
                   title={ownerView ? 'No invoices due' : 'You are paid up'}
                   description={
@@ -345,18 +345,18 @@ export default function Dashboard() {
           title={ownerView ? 'Repair queue' : 'My repairs'}
           description={ownerView ? 'Recent repairs requiring attention.' : 'Requests you have submitted.'}
         >
-          <ul className="space-y-2 text-sm text-foreground">
+          <ul className="space-y-3 text-sm text-foreground">
             {myRepairs.map((repair: any) => (
               <li
                 key={repair.id}
-                className="flex items-center justify-between rounded-2xl border border-white/70 bg-white/90 px-4 py-3 shadow-[0_12px_25px_rgba(12,42,89,0.08)]"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[22px] border border-white/80 bg-white/95 px-5 py-4 shadow-[0_18px_40px_rgba(12,42,89,0.12)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(12,42,89,0.16)]"
               >
-                <span>{repair.title}</span>
-                <span className="text-xs uppercase text-muted">{repair.status}</span>
+                <span className="text-base font-semibold text-[#0f2343]">{repair.title}</span>
+                <span className="text-xs uppercase tracking-[0.14em] text-muted">{repair.status}</span>
               </li>
             ))}
             {!myRepairs.length && (
-              <li>
+              <li className="rounded-[22px] border border-dashed border-outline/60 bg-white/80 px-5 py-4">
                 <EmptyState
                   title={ownerView ? 'No open repairs' : 'No repair requests yet'}
                   description={
@@ -374,21 +374,29 @@ export default function Dashboard() {
         </SectionCard>
         {ownerView && (
           <SectionCard title="Recent payments" description="Latest rent receipts across your portfolio.">
-            <ul className="space-y-2 text-sm text-foreground">
-              {recentPayments.map((payment: any) => (
-                <li
-                  key={payment.id}
-                  className="flex items-center justify-between rounded-2xl border border-white/70 bg-white/90 px-4 py-3 shadow-[0_12px_25px_rgba(12,42,89,0.08)]"
-                >
-                  <div>
-                    <p className="font-medium">{payment.paidEth} ETH</p>
-                    <p className="text-xs text-muted">{payment.tenant}</p>
-                  </div>
-                  <span className="text-xs text-muted">{dayjs(payment.paidAtISO).format('MMM D')}</span>
-                </li>
-              ))}
+            <ul className="space-y-3 text-sm text-foreground">
+              {recentPayments.map((payment: any) => {
+                const date = dayjs(payment.paidAtISO);
+                return (
+                  <li
+                    key={payment.id}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-[22px] border border-white/80 bg-white/95 px-5 py-4 shadow-[0_18px_40px_rgba(12,42,89,0.12)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(12,42,89,0.16)]"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-base font-semibold text-[#0f2343]">{payment.paidEth} ETH</p>
+                      <p className="truncate text-sm text-muted">{payment.tenant}</p>
+                    </div>
+                    <div className="text-right text-xs uppercase tracking-[0.18em] text-muted">
+                      <div className="text-[13px] font-semibold text-[#0f2343] leading-tight">{date.format('MMM')}</div>
+                      <div className="text-sm text-[#55627d] leading-tight">{date.format('D')}</div>
+                    </div>
+                  </li>
+                );
+              })}
               {!recentPayments.length && (
-                <li>
+                <li
+                  className="rounded-[22px] border border-dashed border-outline/60 bg-white/80 px-5 py-4"
+                >
                   <EmptyState
                     title="No payments yet"
                     description="As soon as tenants submit rent, it will appear here with receipt details."

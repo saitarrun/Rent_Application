@@ -63,7 +63,7 @@ export default function AgreementDetail() {
   if (isLoading || !lease) return <p className="text-muted">Loading…</p>;
 
   const canTenantSign = role === 'tenant' && !lease.tenantSignedAt;
-  const canOwnerSign = false; // owner signing happens off-chain only
+  const canOwnerSign = role === 'owner' && !lease.ownerSignedAt;
 
   return (
     <div className="space-y-4">
@@ -84,6 +84,11 @@ export default function AgreementDetail() {
               Download PDF
             </button>
             {canTenantSign && (
+              <AnimatedButton onClick={() => signMutation.mutate()} disabled={signMutation.isPending} className="text-sm">
+                {signMutation.isPending ? 'Signing…' : 'Sign lease'}
+              </AnimatedButton>
+            )}
+            {canOwnerSign && (
               <AnimatedButton onClick={() => signMutation.mutate()} disabled={signMutation.isPending} className="text-sm">
                 {signMutation.isPending ? 'Signing…' : 'Sign lease'}
               </AnimatedButton>

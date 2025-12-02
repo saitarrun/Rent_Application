@@ -1,30 +1,27 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { properties, type Property } from '../data/properties';
 import { filterProperties, sortProperties } from '../lib/filterAndSort';
 import { usePropertyFilters } from '../state/usePropertyFilters';
 import { PropertyGrid } from '../components/PropertyGrid';
+import ApplicationWizard from '../components/ApplicationWizard';
 const PropertyMap = lazy(() =>
   import('../components/PropertyMap').then((module) => ({ default: module.PropertyMap }))
 );
 import { useAppStore } from '../store/useAppStore';
 import {
-  createListing,
-  deleteListing,
   fetchListings,
   fetchProperties as fetchPortfolio,
   fetchLeases,
   refreshListings,
-  submitApplication,
+  createListing,
   updateListing,
-  SubmitApplicationPayload
+  submitApplication
 } from '../lib/api';
-import { AnimatedButton } from '../components/AnimatedButton';
-import SectionCard from '../components/SectionCard';
-import ApplicationWizard from '../components/ApplicationWizard';
 import PageHeader from '../components/PageHeader';
+import ConfirmModal from '../components/ConfirmModal';
 
 const ETH_TO_USD = 3200;
 const formatEth = (value: number) => Number(value.toFixed(3));
@@ -111,40 +108,6 @@ const buildPropertyFromListing = (listing: any, fallbackId: number, fallbackTemp
   };
 };
 
-type ListingDraft = {
-  title: string;
-  address1: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  rentEth: string;
-  beds: number;
-  baths: number;
-  sqft: number;
-  amenities: string;
-  photoUrl: string;
-  externalUrl: string;
-  propertyId?: string;
-  propertyTemplateId: number | null;
-};
-
-const emptyListingDraft: ListingDraft = {
-  title: '',
-  address1: '',
-  city: '',
-  state: '',
-  postalCode: '',
-  rentEth: '',
-  beds: 1,
-  baths: 1,
-  sqft: 500,
-  amenities: '',
-  photoUrl: '',
-  externalUrl: '',
-  propertyId: '',
-  propertyTemplateId: null
-};
-
 export default function PropertiesPage() {
   const {
     search,
@@ -165,45 +128,41 @@ export default function PropertiesPage() {
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const [mapDrawerOpen, setMapDrawerOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
+  const [applicationWizardOpen, setApplicationWizardOpen] = useState(false);
+  const [selectedPropertyForApplication, setSelectedPropertyForApplication] = useState<Property | null>(null);
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const appRole = useAppStore((state) => state.role);
-  const pushNotice = useAppStore((state) => state.pushNotice);
   const isOwner = appRole === 'owner';
-  const ownerMode: 'marketplace' | 'portfolio' = 'marketplace';
   const showMarketplace = true;
-  const queryClient = useQueryClient();
-  type ListingFormErrors = Partial<Record<'title' | 'address1' | 'city' | 'state' | 'rentEth' | 'beds' | 'baths' | 'sqft' | 'propertyTemplateId' | 'general', string>>;
-  const [listingFormVisible, setListingFormVisible] = useState(false);
-  const [editingListing, setEditingListing] = useState<any>(null);
-  const [listingDraft, setListingDraft] = useState<ListingDraft>(emptyListingDraft);
-  const [applyListing, setApplyListing] = useState<any>(null);
-  const [listingErrors, setListingErrors] = useState<ListingFormErrors>({});
-  const [listingSaveMessage, setListingSaveMessage] = useState<string | null>(null);
-
-  const startCreateListing = () => {
-    setEditingListing(null);
-    setListingDraft(emptyListingDraft);
-    setListingFormVisible(true);
-    setListingErrors({});
-    setListingSaveMessage(null);
-  };
-
-  const {
-    data: portfolio = [],
-    isLoading: portfolioLoading
-  } = useQuery({
-    queryKey: ['portfolio'],
-    queryFn: () => fetchPortfolio({ withListings: true }),
-    enabled: isOwner
-  });
 
   const {
     data: liveListings = [],
-    isLoading: liveListingsLoading
+    isLoading: isLoadingListings,
+    isError: isListingsError,
+    error: listingsError
   } = useQuery({
     queryKey: ['liveListings'],
-    queryFn: () => fetchListings()
+    queryFn: async () => {
+      const result = await fetchListings();
+      // Dev logging
+      if (!isOwner && process.env.NODE_ENV === 'development') {
+        console.log('[Tenant Listings API]', { result, isOwner });
+      }
+      return result;
+    }
   });
+
+  const handleRefreshListings = async () => {
+    try {
+      // call refresh endpoint to pull fresh data and then refetch cache
+      await refreshListings();
+      queryClient.invalidateQueries({ queryKey: ['liveListings'] });
+      pushNotice('success', 'Listings refreshed');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || err?.message || 'Failed to refresh listings';
+      pushNotice('error', message);
+    }
+  };
 
   const { inventory, listingMapByPropertyId, publishedLookup } = useMemo(() => {
     const listingMap = new Map<number, any>();
@@ -236,7 +195,8 @@ export default function PropertiesPage() {
         const template = templateById.get(templateId)!;
         overrides.set(templateId, mergeTemplateWithListing(template, listing));
         listingMap.set(templateId, listing);
-        publishedState.set(templateId, true);
+        // Consider a listing published only when it's explicitly available
+        publishedState.set(templateId, Boolean(listing.available));
         return;
       }
 
@@ -249,7 +209,8 @@ export default function PropertiesPage() {
       const fallbackProperty = buildPropertyFromListing(listing, fallbackId);
       extras.push(fallbackProperty);
       listingMap.set(fallbackId, listing);
-      publishedState.set(fallbackId, true);
+      // For synthetic listings treat availability as the published flag
+      publishedState.set(fallbackId, Boolean(listing.available));
     });
 
     const mergedInventory = properties.map((template) => overrides.get(template.id) ?? template);
@@ -283,158 +244,227 @@ export default function PropertiesPage() {
       priceMin,
       priceMax,
       bedrooms,
-      availableOnly,
+      availableOnly: isOwner ? availableOnly : false,
       favoritesOnly,
       sort,
       favorites
     };
     const filteredList = filterProperties(inventory, filtersPayload);
     return sortProperties(filteredList, sort);
-  }, [search, city, type, priceMin, priceMax, bedrooms, availableOnly, favoritesOnly, sort, favorites, inventory]);
+  }, [search, city, type, priceMin, priceMax, bedrooms, availableOnly, favoritesOnly, sort, favorites, inventory, isOwner]);
   const cityCount = new Set(inventory.map((p) => p.city)).size;
-
-  const refreshOwnerListings = useMutation({
-    mutationFn: refreshListings,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['liveListings'] })
-  });
-
-  const validateListingDraft = (draft: ListingDraft): ListingFormErrors => {
-    const errors: ListingFormErrors = {};
-    if (!draft.title.trim()) errors.title = 'Title is required.';
-    if (!draft.address1.trim()) errors.address1 = 'Street address is required.';
-    if (!draft.city.trim()) errors.city = 'City is required.';
-    if (!draft.state.trim()) errors.state = 'State is required.';
-    if (!draft.rentEth || Number(draft.rentEth) <= 0) errors.rentEth = 'Rent must be greater than zero.';
-    if (!draft.propertyTemplateId) errors.propertyTemplateId = 'Template is required.';
-    return errors;
-  };
-
-  const saveListingMutation = useMutation({
-    mutationFn: () => {
-      const errors = validateListingDraft(listingDraft);
-      if (Object.keys(errors).length) {
-        setListingErrors(errors);
-        return Promise.reject(new Error('validation'));
-      }
-      const payload = {
-        ...listingDraft,
-        rentEth: Number(listingDraft.rentEth || 0),
-        beds: Number(listingDraft.beds),
-        baths: Number(listingDraft.baths),
-        sqft: Number(listingDraft.sqft) || 0,
-        propertyTemplateId: listingDraft.propertyTemplateId ?? undefined
-      };
-      setListingErrors({});
-      setListingSaveMessage(null);
-      return editingListing ? updateListing(editingListing.id, payload) : createListing(payload);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['liveListings'] });
-      setListingFormVisible(false);
-      setEditingListing(null);
-      setListingDraft(emptyListingDraft);
-      setListingErrors({});
-      setListingSaveMessage('Listing saved!');
-    },
-    onError: (err: any) => {
-      if (err?.message === 'validation') return;
-      setListingErrors((prev) => ({
-        ...prev,
-        general: err?.response?.data?.message || 'Unable to save listing.'
-      }));
-    }
-  });
-
-const deleteListingMutation = useMutation({
-  mutationFn: (id: string) => deleteListing(id),
-  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['liveListings'] })
-});
-
-const buildPortfolioListingPayload = (property: any) => ({
-  title: property.name || property.listing?.title || 'Listing',
-  address1: property.address || property.listing?.address1 || 'Pending address',
-  city: property.city || property.listing?.city || 'Metropolis',
-  state: property.state || property.listing?.state || 'NY',
-  postalCode: property.postalCode || '',
-  rentEth: Number(property.monthlyRentEth ?? property.rentEth ?? property.price ?? 1) || 1,
-  beds: Number(property.beds ?? 1),
-  baths: Number(property.baths ?? 1),
-  sqft: Number(property.sqft ?? property.area ?? 0),
-  amenities: property.amenities || '',
-  photoUrl: property.photoUrl || property.imageUrl || '',
-  externalUrl: property.externalUrl || '',
-  propertyId: property.id,
-  propertyTemplateId: property.propertyTemplateId ?? property.templateId ?? undefined
-});
-
-const buildTemplateListingPayload = (template: Property) => ({
-  title: template.title,
-  address1: template.address,
-  city: template.city,
-  state: template.state,
-  postalCode: '',
-  rentEth: template.price,
-  beds: template.beds,
-  baths: template.baths,
-  sqft: template.area,
-  amenities: '',
-  photoUrl: template.imageUrl,
-  externalUrl: '',
-  propertyTemplateId: template.id
-});
-
-const quickPublishMutation = useMutation({
-  mutationFn: (payload: { listing: any; trackingKey: string }) => createListing(payload.listing),
-  onSuccess: () => {
-    pushNotice('success', 'Listing published to marketplace');
-    queryClient.invalidateQueries({ queryKey: ['liveListings'] });
-  },
-  onError: (err: any) => pushNotice('error', err?.response?.data?.message || 'Unable to publish listing')
-});
-const publishingKey = quickPublishMutation.variables?.trackingKey as string | undefined;
-  const unpublishMutation = useMutation({
-    mutationFn: ({ listingId }: { listingId: string; trackingKey: string }) => deleteListing(listingId),
-    onSuccess: () => {
-      pushNotice('success', 'Listing unpublished from marketplace');
-      queryClient.invalidateQueries({ queryKey: ['liveListings'] });
-    },
-    onError: (err: any) => pushNotice('error', err?.response?.data?.message || 'Unable to unpublish listing')
-  });
-  const unpublishingKey = unpublishMutation.variables?.trackingKey as string | undefined;
-
-  const publishTemplateProperty = (template: Property) =>
-    quickPublishMutation.mutate({
-      listing: buildTemplateListingPayload(template),
-      trackingKey: `template-${template.id}`
-    });
-
-  const publishPortfolioProperty = (property: any) =>
-    quickPublishMutation.mutate({
-      listing: buildPortfolioListingPayload(property),
-      trackingKey: `portfolio-${property.id}`
-    });
-
-  const unpublishByListing = (propertyKey: string, listingId: string) =>
-    unpublishMutation.mutate({
-      listingId,
-      trackingKey: propertyKey
-    });
 
   const { data: leases = [] } = useQuery({
     queryKey: ['leases-overview'],
     queryFn: fetchLeases,
     enabled: isOwner
   });
+  
+  const queryClient = useQueryClient();
+  const pushNotice = useAppStore((s) => s.pushNotice);
+  const listingsErrorMessage =
+    (listingsError as any)?.response?.data?.message ||
+    (listingsError as Error | undefined)?.message ||
+    'We could not load listings right now.';
 
-  const applyMutation = useMutation({
-    mutationFn: (payload: SubmitApplicationPayload) => submitApplication(payload),
-    onSuccess: () => {
-      pushNotice('success', 'Application submitted');
-      queryClient.invalidateQueries({ queryKey: ['applications'] });
-      setApplyListing(null);
+  // UI keys to show loading states per template card
+  const [publishingKey, setPublishingKey] = useState<string | null>(null);
+  const [unpublishingKey, setUnpublishingKey] = useState<string | null>(null);
+  const [confirmUnpublish, setConfirmUnpublish] = useState<null | { property: Property; listingId: string }>(null);
+
+  const publishMutation = useMutation({
+    mutationFn: (payload: any) => createListing(payload),
+    onMutate: async (payload: any) => {
+      await queryClient.cancelQueries({ queryKey: ['liveListings'] });
+      const previous = queryClient.getQueryData<any[]>(['liveListings']) ?? [];
+      const tempId = `temp-${payload.propertyTemplateId}-${Date.now()}`;
+      const optimistic = {
+        id: tempId,
+        ownerId: useAppStore.getState().user?.id ?? 'me',
+        title: payload.title,
+        address1: payload.address1,
+        city: payload.city,
+        state: payload.state,
+        beds: payload.beds,
+        baths: payload.baths,
+        sqft: payload.sqft,
+        photoUrl: payload.photoUrl,
+        rentEth: payload.rentEth,
+        available: true,
+        propertyTemplateId: payload.propertyTemplateId
+      };
+      queryClient.setQueryData(['liveListings'], [...previous, optimistic]);
+      return { previous, tempId };
     },
-    onError: (err: any) => pushNotice('error', err?.response?.data?.message || 'Unable to submit application')
+    onError: (err, _vars, context: any) => {
+      queryClient.setQueryData(['liveListings'], context?.previous ?? []);
+      const message = (err as any)?.response?.data?.message || (err as Error)?.message || 'Failed to publish listing';
+      pushNotice('error', message);
+    },
+    onSuccess: (data, _vars, context: any) => {
+      const current = queryClient.getQueryData<any[]>(['liveListings']) ?? [];
+      const replaced = current.map((l) => (l.id === context?.tempId ? data : l));
+      queryClient.setQueryData(['liveListings'], replaced);
+      pushNotice('success', 'Listing published');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['liveListings'] });
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      setPublishingKey(null);
+    }
   });
+
+  const unpublishMutation = useMutation({
+  mutationFn: (vars: any) => updateListing(vars.id, vars.payload),
+    onMutate: async ({ id }: { id: string }) => {
+      await queryClient.cancelQueries({ queryKey: ['liveListings'] });
+      const previous = queryClient.getQueryData<any[]>(['liveListings']) ?? [];
+      const next = (previous || []).map((l: any) => (l.id === id ? { ...l, available: false } : l));
+      queryClient.setQueryData(['liveListings'], next);
+      return { previous };
+    },
+    onError: (err, _vars, context: any) => {
+      queryClient.setQueryData(['liveListings'], context?.previous ?? []);
+      const message = (err as any)?.response?.data?.message || (err as Error)?.message || 'Failed to unpublish listing';
+      pushNotice('error', message);
+    },
+    onSuccess: (_data) => {
+      pushNotice('success', 'Listing unpublished');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['liveListings'] });
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      setUnpublishingKey(null);
+    }
+  });
+
+  const republishMutation = useMutation({
+    mutationFn: (vars: any) => updateListing(vars.id, vars.payload),
+    onMutate: async ({ id }: { id: string }) => {
+      await queryClient.cancelQueries({ queryKey: ['liveListings'] });
+      const previous = queryClient.getQueryData<any[]>(['liveListings']) ?? [];
+      const next = (previous || []).map((l: any) => (l.id === id ? { ...l, available: true } : l));
+      queryClient.setQueryData(['liveListings'], next);
+      return { previous };
+    },
+    onError: (err, _vars, context: any) => {
+      queryClient.setQueryData(['liveListings'], context?.previous ?? []);
+      const message = (err as any)?.response?.data?.message || (err as Error)?.message || 'Failed to publish listing';
+      pushNotice('error', message);
+    },
+    onSuccess: () => {
+      pushNotice('success', 'Listing published');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['liveListings'] });
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      setPublishingKey(null);
+    }
+  });
+
+  const applicationMutation = useMutation({
+    mutationFn: (payload: any) => submitApplication(payload),
+    onError: (err: any) => {
+      const message = err?.response?.data?.message || (err as Error)?.message || 'Failed to submit application';
+      pushNotice('error', message);
+    },
+    onSuccess: () => {
+      pushNotice('success', 'Application submitted successfully');
+      setApplicationWizardOpen(false);
+      setSelectedPropertyForApplication(null);
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+    }
+  });
+
+  const handleApplyToProperty = (property: Property) => {
+    setSelectedPropertyForApplication(property);
+    setApplicationWizardOpen(true);
+  };
+
+  const handleApplicationSubmit = async (payload: any) => {
+    // payload comes from ApplicationWizard: { details, documents, message }
+    if (!selectedPropertyForApplication) return;
+
+    const listingId = listingMapByPropertyId.get(selectedPropertyForApplication.id)?.id;
+    if (!listingId) {
+      pushNotice('error', 'Listing ID not found');
+      return;
+    }
+
+    const submitPayload = {
+      listingId,
+      message: payload.message,
+      details: payload.details,
+      documents: payload.documents || []
+    };
+
+    try {
+      await applicationMutation.mutateAsync(submitPayload);
+    } catch (err: any) {
+      // Error is handled in mutation callbacks
+      console.error('Application submission error:', err);
+    }
+  };
+
+  const handleApplicationWizardClose = () => {
+    setApplicationWizardOpen(false);
+    setSelectedPropertyForApplication(null);
+  };
+
+  const handlePublishListing = async (property: Property, listingId?: string) => {
+    const key = `template-${property.id}`;
+    setPublishingKey(key);
+    try {
+      if (listingId) {
+        // republish existing listing
+        await republishMutation.mutateAsync({ id: listingId, payload: { available: true } } as any);
+        return;
+      }
+
+      const payload = {
+        title: property.title,
+        address1: property.address,
+        city: property.city,
+        state: property.state,
+        postalCode: '',
+        beds: Number(property.beds || 1),
+        baths: Number(property.baths || 1),
+        sqft: Number(property.area || 0),
+        amenities: undefined,
+        photoUrl: property.imageUrl,
+        externalUrl: undefined,
+        rentEth: Number(property.price || 0),
+        available: true,
+        propertyTemplateId: property.id
+      };
+      await publishMutation.mutateAsync(payload);
+    } catch (err) {
+      // swallow - pushNotice handled in mutation callbacks
+    }
+  };
+
+  const handleUnpublishListing = async (property: Property, listingId: string) => {
+    const key = `template-${property.id}`;
+    setUnpublishingKey(key);
+    try {
+      await unpublishMutation.mutateAsync({ id: listingId, payload: { available: false } } as any);
+    } catch (err) {
+      // swallow - pushNotice handled in mutation callbacks
+    }
+  };
+
+  const requestUnpublishListing = (property: Property, listingId: string) => {
+    setConfirmUnpublish({ property, listingId });
+  };
+
+  const cancelUnpublish = () => setConfirmUnpublish(null);
+
+  const confirmAndUnpublish = async () => {
+    if (!confirmUnpublish) return;
+    const { property, listingId } = confirmUnpublish;
+    setConfirmUnpublish(null);
+    await handleUnpublishListing(property, listingId);
+  };
 
   const handleViewOnMap = (id: number) => {
     setFocusId(id);
@@ -447,70 +477,18 @@ const publishingKey = quickPublishMutation.variables?.trackingKey as string | un
     cardRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
-  const handleApplyFromCard = (property: Property) => {
-    const listing = listingMapByPropertyId.get(property.id);
-    if (!listing) {
-      pushNotice('error', 'Owner has not published this listing yet.');
-      return;
-    }
-    if (!listing.available) {
-      pushNotice('info', 'This listing is currently leased.');
-      return;
-    }
-    setApplyListing(listing);
-  };
-
   const availableCount = useMemo(() => filtered.filter((property) => property.available).length, [filtered]);
   const summaryStats = [
     { label: 'Total properties', value: inventory.length },
     { label: 'Cities covered', value: cityCount },
-    { label: isOwner ? 'Published listings' : 'Favorites saved', value: isOwner ? liveListings.length : favorites.length },
+  { label: isOwner ? 'Published listings' : 'Favorites saved', value: isOwner ? liveListings.filter((l: any) => l.available).length : favorites.length },
     { label: 'Available today', value: availableCount }
   ];
 
-  const availableListingsCount = useMemo(
-    () => liveListings.filter((listing: any) => listing.available).length,
-    [liveListings]
-  );
-  const pausedListingsCount = useMemo(
-    () => liveListings.length - availableListingsCount,
-    [liveListings, availableListingsCount]
-  );
-  const templatesNeedingListing = useMemo(
-    () => inventory.filter((property) => templateById.has(property.id) && !publishedLookup.get(property.id)).length,
-    [inventory, liveListings]
-  );
-  const depositsDueCount = useMemo(
-    () =>
-      leases.filter((lease: any) => {
-        const deposit = Number(lease.securityDepositEth ?? 0);
-        const balance = Number(lease.depositBalanceEth ?? 0);
-        return deposit > 0 && balance < deposit;
-      }).length,
-    [leases]
-  );
-  const annualDueCount = useMemo(
-    () =>
-      leases.filter((lease: any) => {
-        const annualAmount = Number(lease.annualRentEth ?? 0);
-        if (annualAmount === 0) return false;
-        return !(lease.receipts?.some((receipt: any) => Number(receipt.paidEth ?? 0) >= annualAmount));
-      }).length,
-    [leases]
-  );
-  const openRepairsCount = useMemo(
-    () =>
-      leases.reduce(
-        (sum: number, lease: any) =>
-          sum + (lease.repairs?.filter((repair: any) => repair.status !== 'closed' && repair.status !== 'resolved').length ?? 0),
-        0
-      ),
-    [leases]
-  );
-  const pageTitle = isOwner ? 'Portfolio & marketplace' : 'Explore modern homes';
+  const pageTitle = isOwner ? 'Portfolio' : 'Explore modern homes';
   const pageDescription = isOwner
-    ? 'Preview the tenant-facing browse experience and manage availability.'
-    : 'Browse curated rentals, view the live map, and submit lease applications in one place.';
+    ? 'Manage your properties.'
+    : 'Browse curated rentals and view the live map.';
   const headerActions = (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
       <div className="flex gap-2">
@@ -543,7 +521,15 @@ const publishingKey = quickPublishMutation.variables?.trackingKey as string | un
   return (
     <motion.div className="space-y-6" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
       <PageHeader title={pageTitle} description={pageDescription} actions={headerActions} />
-      {isOwner && <p className="text-xs text-muted">Browsing in marketplace preview mode.</p>}
+      {isOwner && <p className="text-xs text-muted">Browsing in portfolio mode.</p>}
+      {!isOwner && (
+        <div className="rounded-2xl border border-dashed border-brand/30 bg-brand/5 p-4 text-sm text-muted">
+          <p className="font-semibold text-foreground mb-2">Tenant View Debug:</p>
+          <p>Live Listings: {Array.isArray(liveListings) ? liveListings.length : '?'}</p>
+          <p>Total Properties: {inventory.length}</p>
+          <p>Filtered Count: {filtered.length}</p>
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryStats.map((stat) => (
           <div key={stat.label} className="rounded-2xl border border-outline bg-white p-4 shadow-sm">
@@ -554,29 +540,57 @@ const publishingKey = quickPublishMutation.variables?.trackingKey as string | un
       </div>
       {showMarketplace &&
         (viewMode === 'grid' ? (
-          <PropertyGrid
-            properties={filtered}
-            favorites={favorites}
-            onToggleFavorite={toggleFavorite}
-            onViewOnMap={handleViewOnMap}
-            highlightedId={highlightedId}
-            registerCardRef={(id, node) => {
-              cardRefs.current[id] = node;
-            }}
-            showApplyButton={!isOwner}
-            onApply={handleApplyFromCard}
-            isOwnerView={isOwner}
-            publishedLookup={publishedLookup}
-            listingLookup={listingMapByPropertyId}
-            onPublishListing={isOwner ? publishTemplateProperty : undefined}
-            onUnpublishListing={
-              isOwner
-                ? (_property, listingId) => unpublishByListing(`template-${_property.id}`, listingId)
-                : undefined
-            }
-            publishingKey={publishingKey}
-            unpublishingKey={unpublishingKey}
-          />
+          !isOwner && !isLoadingListings && filtered.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-outline/60 bg-white p-8 text-center text-muted">
+              <p className="mb-2 text-lg font-semibold text-foreground">
+                {isListingsError ? 'Unable to load listings' : 'No active listings found'}
+              </p>
+              <p className="mb-4 text-sm">
+                {isListingsError
+                  ? listingsErrorMessage
+                  : "We couldn't find any published listings. This could be due to a network/auth issue or there are no listings published yet."}
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ['liveListings'] })}
+                  className="rounded-xl border border-outline px-4 py-2 text-sm font-semibold"
+                >
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRefreshListings}
+                  className="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Refresh listings
+                </button>
+              </div>
+              <p className="mt-4 text-xs text-muted">
+                If this persists, open DevTools → Network and check the GET /api/listings response (401/403/empty array).
+              </p>
+            </div>
+          ) : (
+            <PropertyGrid
+              properties={filtered}
+              favorites={favorites}
+              onToggleFavorite={toggleFavorite}
+              onViewOnMap={handleViewOnMap}
+              onApply={!isOwner ? handleApplyToProperty : undefined}
+              highlightedId={highlightedId}
+              registerCardRef={(id, node) => {
+                cardRefs.current[id] = node;
+              }}
+              showApplyButton={!isOwner}
+              isOwnerView={isOwner}
+              publishedLookup={publishedLookup}
+              listingLookup={listingMapByPropertyId}
+              onPublishListing={handlePublishListing}
+              onUnpublishListing={requestUnpublishListing}
+              publishingKey={publishingKey ?? undefined}
+              unpublishingKey={unpublishingKey ?? undefined}
+            />
+          )
         ) : (
           <Suspense fallback={<div className="rounded-3xl border border-outline bg-white p-8 text-center text-muted">Loading map…</div>}>
             <div className="rounded-3xl border border-outline bg-white p-2 shadow-soft">
@@ -584,115 +598,6 @@ const publishingKey = quickPublishMutation.variables?.trackingKey as string | un
             </div>
           </Suspense>
         ))}
-
-      <section id="portfolio-listings">
-            <SectionCard title="Listing manager" description="Publish listings tied to your properties.">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-muted">Keep listings synchronized with your property templates and availability.</p>
-              <div className="flex flex-wrap gap-2">
-                <AnimatedButton className="px-5" onClick={startCreateListing}>
-                  Add listing
-                </AnimatedButton>
-                <button
-                  type="button"
-                  className="rounded-full border border-outline px-4 py-2 text-xs uppercase tracking-[0.2em] text-muted hover:text-foreground"
-                  onClick={() => refreshOwnerListings.mutate()}
-                >
-                  {refreshOwnerListings.isPending ? 'Syncing…' : 'Sync feed'}
-                </button>
-              </div>
-            </div>
-            {liveListingsLoading ? (
-              <p className="text-sm text-muted">Loading listings…</p>
-            ) : liveListings.length ? (
-              <div className="space-y-4">
-                {liveListings.map((listing: any) => (
-                  <article key={listing.id} className="rounded-2xl border border-outline/40 bg-white p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.2em] text-muted">{listing.city}</p>
-                        <h3 className="text-lg font-semibold">{listing.title}</h3>
-                        <p className="text-sm text-muted">{listing.address1}</p>
-                        <p className="text-xs text-muted">
-                          {listing.propertyTemplateId
-                            ? `Template #${listing.propertyTemplateId} ${
-                                templateById.get(Number(listing.propertyTemplateId))?.title ?? ''
-                              }`
-                            : 'No template linked'}
-                        </p>
-                      </div>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${listing.available ? 'bg-green-100 text-success' : 'bg-slate-100 text-muted'}`}>
-                        {listing.available ? 'Available' : 'Leased'}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-semibold text-foreground">
-                        ETH {Number(listing.rentEth ?? 0).toFixed(2)} /mo
-                      </p>
-                      <p className="text-xs text-muted">{formatUsd(Number(listing.rentEth ?? 0))}</p>
-                    </div>
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
-                      <span>
-                        {listing.beds} bd • {listing.baths ?? 1} ba
-                      </span>
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          className="text-brand font-semibold"
-                          onClick={() => {
-                            setEditingListing(listing);
-                            setListingDraft({
-                              title: listing.title || '',
-                              address1: listing.address1 || '',
-                              city: listing.city || '',
-                              state: listing.state || '',
-                              postalCode: listing.postalCode || '',
-                              rentEth: listing.rentEth?.toString() || '',
-                              beds: listing.beds || 1,
-                              baths: listing.baths || 1,
-                              sqft: listing.sqft || 0,
-                              amenities: listing.amenities || '',
-                              photoUrl: listing.photoUrl || '',
-                              externalUrl: listing.externalUrl || '',
-                              propertyId: listing.propertyId || '',
-                              propertyTemplateId: listing.propertyTemplateId ?? null
-                            });
-                            setListingFormVisible(true);
-                            setListingErrors({});
-                            setListingSaveMessage(null);
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="text-danger font-semibold"
-                          onClick={() => deleteListingMutation.mutate(listing.id)}
-                          disabled={deleteListingMutation.isPending}
-                        >
-                          {deleteListingMutation.isPending ? 'Removing…' : 'Delete'}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-xs text-muted sm:grid-cols-3">
-                      <span className={`inline-flex items-center gap-1 ${listing.propertyTemplateId ? 'text-success' : 'text-warning'}`}>
-                        {listing.propertyTemplateId ? '✓ Template linked' : '• Template missing'}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 ${Number(listing.rentEth ?? 0) > 0 ? 'text-success' : 'text-warning'}`}>
-                        {Number(listing.rentEth ?? 0) > 0 ? '✓ Rent set' : '• Rent required'}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 ${listing.available ? 'text-success' : 'text-warning'}`}>
-                        {listing.available ? 'Ready to publish' : 'Mark unavailable'}
-                      </span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted">No listings yet. Start by assigning a template and publishing.</p>
-            )}
-            </SectionCard>
-          </section>
 
       <AnimatePresence>
         {mapDrawerOpen && (
@@ -717,166 +622,26 @@ const publishingKey = quickPublishMutation.variables?.trackingKey as string | un
           </motion.div>
         )}
       </AnimatePresence>
-
-      {listingFormVisible && isOwner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              saveListingMutation.mutate();
-            }}
-            className="w-full max-w-3xl space-y-5 rounded-[32px] border border-outline bg-white p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
-            noValidate
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">{editingListing ? 'Edit listing' : 'New listing'}</h2>
-              <button
-                type="button"
-                className="rounded-full border border-outline p-2"
-                onClick={() => {
-                  setListingFormVisible(false);
-                  setEditingListing(null);
-                  setListingErrors({});
-                  setListingSaveMessage(null);
-                }}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="text-xs uppercase text-muted">
-                Template property <span className="text-danger">*</span>
-                <select
-                  className="mt-1 w-full rounded-xl border border-outline px-3 py-2 text-sm"
-                  value={listingDraft.propertyTemplateId ?? ''}
-                  onChange={(e) =>
-                    setListingDraft((prev) => ({
-                      ...prev,
-                      propertyTemplateId: e.target.value ? Number(e.target.value) : null
-                    }))
-                  }
-                  required
-                >
-                  <option value="">Select a template</option>
-                  {properties.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      #{template.id} {template.title} ({template.city})
-                    </option>
-                  ))}
-                </select>
-                {listingErrors.propertyTemplateId && (
-                  <p className="text-xs text-danger">{listingErrors.propertyTemplateId}</p>
-                )}
-              </label>
-              <label className="text-xs uppercase text-muted">
-                Property
-                <select
-                  className="mt-1 w-full rounded-xl border border-outline px-3 py-2 text-sm"
-                  value={listingDraft.propertyId || ''}
-                  onChange={(e) => setListingDraft((prev) => ({ ...prev, propertyId: e.target.value }))}
-                >
-                  <option value="">Unassigned</option>
-                  {portfolio.map((property: any) => (
-                    <option key={property.id} value={property.id}>
-                      {property.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              {['title', 'address1', 'city', 'state', 'postalCode', 'amenities'].map((field) => {
-                const required = ['title', 'address1', 'city', 'state'].includes(field);
-                return (
-                  <label key={field} className="text-xs uppercase text-muted">
-                    {field}
-                    {required && <span className="text-danger">*</span>}
-                    <input
-                      className="mt-1 w-full rounded-xl border border-outline px-3 py-2 text-sm"
-                      placeholder={field}
-                      value={(listingDraft as any)[field]}
-                      onChange={(e) => setListingDraft((prev) => ({ ...prev, [field]: e.target.value }))}
-                      required={required}
-                    />
-                    {listingErrors[field as keyof ListingFormErrors] && (
-                      <p className="text-xs text-danger">{listingErrors[field as keyof ListingFormErrors]}</p>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              {['rentEth', 'photoUrl', 'externalUrl'].map((field) => (
-                <label key={field} className="text-xs uppercase text-muted">
-                  {field === 'rentEth' ? 'Rent (ETH)' : field}
-                  <input
-                    className="mt-1 w-full rounded-xl border border-outline px-3 py-2 text-sm"
-                    placeholder={field}
-                    value={(listingDraft as any)[field]}
-                    onChange={(e) => setListingDraft((prev) => ({ ...prev, [field]: e.target.value }))}
-                    type={field === 'rentEth' ? 'number' : 'text'}
-                    step={field === 'rentEth' ? '0.01' : undefined}
-                    required={field === 'rentEth'}
-                  />
-                  {listingErrors[field as keyof ListingFormErrors] && (
-                    <p className="text-xs text-danger">{listingErrors[field as keyof ListingFormErrors]}</p>
-                  )}
-                </label>
-              ))}
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              {(['beds', 'baths', 'sqft'] as const).map((field) => (
-                <label key={field} className="text-xs uppercase text-muted">
-                  {field}
-                  <input
-                    type="number"
-                    className="mt-1 w-full rounded-xl border border-outline px-2 py-1 text-sm"
-                    value={(listingDraft as any)[field]}
-                    onChange={(e) => setListingDraft((prev) => ({ ...prev, [field]: Number(e.target.value) }))}
-                  />
-                </label>
-              ))}
-            </div>
-            {listingErrors.general && <p className="text-sm text-danger">{listingErrors.general}</p>}
-            {listingSaveMessage && <p className="text-sm text-success">{listingSaveMessage}</p>}
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                className="rounded-xl border border-outline px-4 py-2 text-sm text-muted"
-                onClick={() => {
-                  setListingFormVisible(false);
-                  setEditingListing(null);
-                  setListingErrors({});
-                  setListingSaveMessage(null);
-                }}
-              >
-                Cancel
-              </button>
-              <AnimatedButton type="submit" disabled={saveListingMutation.isPending}>
-                {saveListingMutation.isPending ? 'Saving…' : 'Save listing'}
-              </AnimatedButton>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {applyListing && (
+      <ConfirmModal
+        isOpen={!!confirmUnpublish}
+        onCancel={cancelUnpublish}
+        onConfirm={confirmAndUnpublish}
+        title="Confirm unpublish"
+        description="Are you sure you want to make this listing unavailable? This will prevent new applications."
+        confirmLabel="Unpublish"
+        isDestructive
+      />
+      {selectedPropertyForApplication && (
         <ApplicationWizard
-          listing={applyListing}
-          submitting={applyMutation.isPending}
-          onClose={() => {
-            if (!applyMutation.isPending) {
-              setApplyListing(null);
-            }
+          listing={{
+            id: listingMapByPropertyId.get(selectedPropertyForApplication.id)?.id || selectedPropertyForApplication.id.toString(),
+            title: selectedPropertyForApplication.title,
+            city: selectedPropertyForApplication.city,
+            price: selectedPropertyForApplication.price
           }}
-          onSubmit={(payload) => {
-            applyMutation.mutate({
-              listingId: applyListing.id,
-              details: payload.details,
-              documents: payload.documents,
-              message: payload.message
-            });
-          }}
+          onClose={handleApplicationWizardClose}
+          onSubmit={handleApplicationSubmit}
+          submitting={applicationMutation.isPending}
         />
       )}
     </motion.div>

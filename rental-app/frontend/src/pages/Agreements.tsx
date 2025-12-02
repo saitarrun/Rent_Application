@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { closeLease, fetchLeases } from '../lib/api';
@@ -10,6 +11,7 @@ export default function Agreements() {
   const role = useAppStore((state) => state.role ?? state.user?.role);
   const pushNotice = useAppStore((state) => state.pushNotice);
   const queryClient = useQueryClient();
+  const formatDate = (value?: string) => (value ? dayjs(value).format('YYYY-MM-DD') : '—');
 
   const closeMutation = useMutation({
     mutationFn: (leaseId: string) => closeLease(leaseId),
@@ -55,64 +57,89 @@ export default function Agreements() {
       {isLoading ? (
         <p className="text-muted">Loading…</p>
       ) : (
-        <SectionCard>
+        <SectionCard bleed>
           <div className="hidden md:block">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-muted">
-                  <th className="p-3 font-semibold text-foreground/80">Lease</th>
-                  <th className="p-3 font-semibold text-foreground/80">Property</th>
-                  <th className="p-3 font-semibold text-foreground/80">Tenant</th>
-                  <th className="p-3 font-semibold text-foreground/80">Rent (ETH)</th>
-                  <th className="p-3 font-semibold text-foreground/80">Start</th>
-                  <th className="p-3 font-semibold text-foreground/80">End</th>
-                  <th className="p-3 font-semibold text-foreground/80">Chain</th>
-                  <th className="p-3 font-semibold text-foreground/80">Tx hash</th>
-                  <th className="p-3 font-semibold text-foreground/80">Status</th>
-                  <th className="p-3 text-right font-semibold text-foreground/80">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leases.map((lease: any) => {
-                  const badge = statusBadge(lease.status);
-                  return (
-                    <tr key={lease.id} className="border-t border-outline/40">
-                    <td className="p-3 font-semibold text-foreground">{lease.id.slice(0, 6)}</td>
-                    <td className="p-3 text-foreground">{lease.listing?.title || 'Listing'}</td>
-                    <td className="p-3 text-muted">{lease.tenant?.email || '—'}</td>
-                    <td className="p-3 text-foreground">{Number(lease.annualRentEth || 0).toFixed(2)}</td>
-                    <td className="p-3 text-muted">{lease.startISO ? lease.startISO.slice(0, 10) : '—'}</td>
-                    <td className="p-3 text-muted">{lease.endISO ? lease.endISO.slice(0, 10) : '—'}</td>
-                    <td className="p-3 text-muted">{lease.chainId || '—'}</td>
-                    <td className="p-3 font-mono text-xs text-muted">{lease.txHash ? `${lease.txHash.slice(0, 10)}…` : '—'}</td>
-                    <td className="p-3">
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${badge.classes}`}>
-                        {badge.label}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex flex-wrap items-center justify-end gap-3 text-sm">
-                        <Link to={`/agreements/${lease.id}`} className="text-brand font-semibold hover:text-brand-hover">
-                          Details
-                        </Link>
-                        <Link to={`/repairs/${lease.id}`} className="text-muted underline-offset-4 hover:underline">
-                          Repairs
-                        </Link>
-                        {renderCloseButton(lease)}
-                      </div>
-                    </td>
-                    </tr>
-                  );
-                })}
-                {!leases.length && (
+            <div className="overflow-hidden rounded-[28px] border border-outline/60 bg-white/90 shadow-[0_30px_80px_rgba(12,42,89,0.12)]">
+              <table className="min-w-full text-sm">
+                <thead className="bg-white/80 text-[12px] uppercase tracking-[0.14em] text-muted">
                   <tr>
-                    <td colSpan={9} className="p-4 text-center text-muted">
-                      No leases yet.
-                    </td>
+                    <th className="px-4 py-3 text-left font-semibold text-foreground/80">Lease</th>
+                    <th className="px-4 py-3 text-left font-semibold text-foreground/80">Property</th>
+                    <th className="px-4 py-3 text-left font-semibold text-foreground/80">Tenant</th>
+                    <th className="px-4 py-3 text-center font-semibold text-foreground/80">Rent (ETH)</th>
+                    <th className="px-4 py-3 text-center font-semibold text-foreground/80">Start</th>
+                    <th className="px-4 py-3 text-center font-semibold text-foreground/80">End</th>
+                    <th className="px-4 py-3 text-center font-semibold text-foreground/80">Chain</th>
+                    <th className="px-4 py-3 text-left font-semibold text-foreground/80">Tx hash</th>
+                    <th className="px-4 py-3 text-center font-semibold text-foreground/80">Status</th>
+                    <th className="px-4 py-3 text-right font-semibold text-foreground/80">Actions</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {leases.map((lease: any) => {
+                    const badge = statusBadge(lease.status);
+                    return (
+                      <tr
+                        key={lease.id}
+                        className="border-t border-outline/40 bg-white/80 transition-colors hover:bg-[#f5f8ff]"
+                      >
+                        <td className="px-4 py-4 text-sm font-semibold text-foreground whitespace-nowrap">
+                          {lease.id.slice(0, 6)}
+                        </td>
+                        <td className="px-4 py-4 text-foreground">
+                          {lease.listing?.title || lease.property?.name || 'Listing'}
+                        </td>
+                        <td className="px-4 py-4 text-muted">
+                          <span className="block max-w-[240px] truncate">{lease.tenant?.email || '—'}</span>
+                        </td>
+                        <td className="px-4 py-4 text-center text-foreground font-semibold">
+                          {Number(lease.annualRentEth || 0).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-4 text-center text-muted whitespace-nowrap">
+                          {formatDate(lease.startISO)}
+                        </td>
+                        <td className="px-4 py-4 text-center text-muted whitespace-nowrap">
+                          {formatDate(lease.endISO)}
+                        </td>
+                        <td className="px-4 py-4 text-center text-muted">{lease.chainId || '—'}</td>
+                        <td className="px-4 py-4 font-mono text-xs text-muted">
+                          {lease.txHash ? `${lease.txHash.slice(0, 10)}…` : '—'}
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${badge.classes}`}>
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-wrap items-center justify-end gap-3 text-sm">
+                            <Link
+                              to={`/agreements/${lease.id}`}
+                              className="font-semibold text-brand hover:text-brand-hover"
+                            >
+                              Details
+                            </Link>
+                            <Link
+                              to={`/repairs/${lease.id}`}
+                              className="text-muted underline-offset-4 hover:underline"
+                            >
+                              Repairs
+                            </Link>
+                            {renderCloseButton(lease)}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {!leases.length && (
+                    <tr>
+                      <td colSpan={10} className="p-5 text-center text-muted">
+                        No leases yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
           <div className="space-y-3 md:hidden">
             {leases.length ? (

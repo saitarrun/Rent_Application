@@ -494,58 +494,73 @@ function ApplicationDetailsModal({ application, onClose }: ApplicationDetailsMod
   };
 
   const InfoPanel = ({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) => (
-    <div className={`rounded-2xl border border-outline/50 bg-white/90 p-4 ${className ?? ''}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-muted">{title}</p>
-      <div className="mt-2 space-y-1 text-sm text-foreground">{children}</div>
+    <div
+      className={`h-full rounded-[20px] border border-outline/50 bg-white p-5 shadow-[0_16px_38px_rgba(12,42,89,0.08)] ${className ?? ''}`}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted">{title}</p>
+      <div className="mt-3 flex flex-col gap-2 text-sm text-foreground">{children}</div>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-4xl rounded-[32px] border border-white/80 bg-white/95 p-8 shadow-[0_40px_160px_rgba(12,42,89,0.2)]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+      <div className="w-full max-w-5xl overflow-hidden rounded-[32px] border border-white/50 bg-white shadow-[0_48px_180px_rgba(12,42,89,0.22)]">
+        <div className="flex items-start justify-between gap-4 border-b border-outline/40 px-8 py-6">
           <div>
             <p className="text-xs uppercase tracking-[0.45em] text-muted">Application for</p>
-            <h2 className="text-2xl font-semibold text-foreground">{application.listing?.title ?? 'Listing'}</h2>
+            <h2 className="text-3xl font-semibold leading-tight text-foreground">
+              {application.listing?.title ?? 'Listing'}
+            </h2>
             <p className="text-sm text-muted">{`${application.listing?.city ?? '—'}, ${application.listing?.state ?? ''}`}</p>
           </div>
-          <button type="button" className="rounded-full border border-outline p-2 text-muted" onClick={onClose}>
+          <button
+            type="button"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-outline text-lg font-semibold text-muted transition hover:bg-surface-1"
+            onClick={onClose}
+            aria-label="Close"
+          >
             ×
           </button>
         </div>
         {details ? (
-          <div className="mt-6 space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <InfoPanel title="Applicant">
-                <p className="text-lg font-semibold">{details.legalName || '—'}</p>
-                <p className="text-sm text-muted">{details.email || application.applicantEmail}</p>
-                <p className="text-sm text-muted">{details.phone || '—'}</p>
-                <div className="flex items-center gap-3 text-xs text-muted font-mono">
-                  {formatWallet(application.wallet)}
-                  {application.wallet && (
-                    <button
-                      type="button"
-                      onClick={copyWallet}
-                      className="rounded-full border border-outline/60 px-3 py-1 text-[11px] font-semibold text-brand hover:bg-brand/5"
-                    >
-                      Copy
-                    </button>
+          <div className="space-y-6 px-8 py-6 max-h-[80vh] overflow-y-auto">
+            <div className="grid gap-6 md:grid-cols-2">
+              <InfoPanel title="Applicant" className="h-full">
+                <div className="space-y-2">
+                  <p className="text-xl font-semibold leading-tight">{details.legalName || '—'}</p>
+                  <p className="text-sm text-muted truncate">{details.email || application.applicantEmail}</p>
+                  <p className="text-sm text-muted">{details.phone || '—'}</p>
+                  <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-muted">
+                    {formatWallet(application.wallet)}
+                    {application.wallet && (
+                      <button
+                        type="button"
+                        onClick={copyWallet}
+                        className="rounded-full border border-outline/60 px-3 py-1 text-[11px] font-semibold text-brand transition hover:bg-brand/5"
+                      >
+                        Copy
+                      </button>
+                    )}
+                  </div>
+                  {details.preferredMoveIn && (
+                    <p className="text-sm text-muted">Move-in: {details.preferredMoveIn}</p>
                   )}
                 </div>
-                {details.preferredMoveIn && <p className="text-sm text-muted">Move-in: {details.preferredMoveIn}</p>}
               </InfoPanel>
-              <InfoPanel title="Income">
+              <InfoPanel title="Income" className="h-full">
                 <p className="text-sm">
                   <span className="font-semibold">Status:</span> {details.employmentStatus || '—'}
                 </p>
                 <p className="text-sm text-muted">Employer: {details.employerName || '—'}</p>
                 <p className="text-sm text-muted">Annual: {formatCurrency(details.annualIncome)}</p>
-                {details.monthlyIncome && <p className="text-sm text-muted">Monthly: {formatCurrency(details.monthlyIncome)}</p>}
+                {details.monthlyIncome && (
+                  <p className="text-sm text-muted">Monthly: {formatCurrency(details.monthlyIncome)}</p>
+                )}
                 {details.creditScore && <p className="text-sm text-muted">Credit score: {details.creditScore}</p>}
               </InfoPanel>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <InfoPanel title="Household">
+            <div className="grid gap-6 md:grid-cols-2">
+              <InfoPanel title="Household" className="h-full">
                 {details.occupants?.length ? (
                   <ul className="mt-2 space-y-1 text-sm">
                     {details.occupants.map((occupant: any, index: number) => (
@@ -559,7 +574,7 @@ function ApplicationDetailsModal({ application, onClose }: ApplicationDetailsMod
                   <p className="text-sm text-muted">Only applicant listed.</p>
                 )}
               </InfoPanel>
-              <InfoPanel title="Notes">
+              <InfoPanel title="Notes" className="h-full">
                 <p className="text-sm text-muted">{details.notes || 'No additional notes provided.'}</p>
               </InfoPanel>
             </div>

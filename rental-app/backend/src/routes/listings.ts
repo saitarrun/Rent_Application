@@ -93,6 +93,15 @@ router.patch('/:id', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json(parsed.error.flatten());
   }
+  // If attempting to unpublish (available === false), ensure there are no active leases
+  if (parsed.data.available === false) {
+    const leasesCount = await prisma.lease.count({ where: { listingId: listing.id } });
+    if (leasesCount > 0) {
+      return res.status(409).json({
+        message: 'Cannot unpublish listing while one or more leases exist. Please terminate or reassign leases first.'
+      });
+    }
+  }
   const propertyId = parsed.data.propertyId && parsed.data.propertyId.trim().length ? parsed.data.propertyId : undefined;
   const propertyTemplateId = parsed.data.propertyTemplateId ?? listing.propertyTemplateId ?? undefined;
   const updated = await prisma.listing.update({

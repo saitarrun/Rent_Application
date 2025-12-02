@@ -7,7 +7,6 @@ type NavLinkItem = { label: string; path: string };
 const ownerLinks: NavLinkItem[] = [
   { label: 'Overview', path: '/' },
   { label: 'Portfolio', path: '/explore?view=portfolio' },
-  { label: 'Listings', path: '/explore' },
   { label: 'Applications', path: '/applications' },
   { label: 'Agreements', path: '/agreements' },
   { label: 'Settings', path: '/settings' }
@@ -15,7 +14,7 @@ const ownerLinks: NavLinkItem[] = [
 
 const tenantLinks: NavLinkItem[] = [
   { label: 'Overview', path: '/' },
-  { label: 'Listings', path: '/explore' },
+  { label: 'Browse listings', path: '/explore' },
   { label: 'Applications', path: '/applications' },
   { label: 'Agreements', path: '/agreements' },
   { label: 'Settings', path: '/settings' }
@@ -67,6 +66,8 @@ export default function Navbar() {
   if (!token) return null;
 
   const links = useNavLinks(role);
+  // promote a small set of primary links for easier discovery
+  const primaryLabels = ['Agreements', 'Payments', 'Repairs', 'Browse listings', 'Portfolio'];
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -109,25 +110,54 @@ export default function Navbar() {
           </div>
         </div>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <nav className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-            {links.map((link) => {
-              const active = isActive(link.path);
-              return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className={`rounded-full px-4 py-2 transition ${
-                    active
-                      ? 'bg-brand/10 text-brand shadow-[inset_0_0_0_1px_rgba(24,115,240,0.35)]'
-                      : 'text-muted hover:text-foreground hover:bg-surface-2'
-                  }`}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
+          <nav className="flex flex-wrap items-center gap-2 text-sm">
+            {links
+              .sort((a, b) => {
+                // Enforce explicit user-desired ordering: tenant gets Overview, Browse listings, Applications, Agreements, Settings
+                // Owner gets Overview, Portfolio, Applications, Agreements, Settings
+                const tenantOrder = ['Overview', 'Browse listings', 'Applications', 'Agreements', 'Settings'];
+                const ownerOrder = ['Overview', 'Portfolio', 'Applications', 'Agreements', 'Settings'];
+                const desiredOrder = role === 'tenant' ? tenantOrder : ownerOrder;
+                const ia = desiredOrder.indexOf(a.label);
+                const ib = desiredOrder.indexOf(b.label);
+                const va = ia === -1 ? 999 : ia;
+                const vb = ib === -1 ? 999 : ib;
+                return va - vb;
+              })
+              .map((link) => {
+                const active = isActive(link.path);
+                const isPrimary = primaryLabels.includes(link.label);
+                return (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    className={`rounded-full px-4 py-2 transition ${
+                      active
+                        ? 'bg-brand/10 text-brand shadow-[inset_0_0_0_1px_rgba(24,115,240,0.35)] font-semibold'
+                        : isPrimary
+                        ? 'bg-surface-2 text-foreground hover:bg-surface-3 font-normal'
+                        : 'text-muted hover:text-foreground hover:bg-surface-2 font-normal'
+                    }`}
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })}
           </nav>
+          {/* Tenant CTA: persistent Explore button for quick discovery */}
+          {role === 'tenant' && (
+            <div className="ml-2 flex items-center">
+              <Link
+                to="/explore"
+                className="ml-2 hidden rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:opacity-95 md:inline-flex"
+                title="Explore listings (quick access)"
+                aria-label="Explore listings"
+              >
+                Explore
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -7,6 +7,8 @@ import { issueToken } from '../middleware/auth';
 
 const router = Router();
 
+const ALLOWED_OWNER_EMAILS = ['owner@rentalsuite.com'];
+
 const nonceSchema = z.object({
   address: z.string().min(42),
   role: z.enum(['owner', 'tenant']).default('tenant'),
@@ -34,11 +36,42 @@ router.post('/nonce', async (req, res) => {
     if (!email) {
       return res.status(400).json({ message: 'Owner email is required' });
     }
-    const ownerByEmail = await prisma.user.findUnique({ where: { email } });
-    if (!ownerByEmail || ownerByEmail.role !== 'owner') {
-      return res.status(403).json({ message: 'Email not registered as an owner' });
+    const isAllowlistedOwner = ALLOWED_OWNER_EMAILS.includes(normalizedEmail);
+    const ownerByEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+    if (!ownerByEmail) {
+      if (!isAllowlistedOwner) {
+        return res.status(403).json({ message: 'Email not registered as an owner' });
+      }
+      // Seed the owner user if it's an allowed owner email and does not exist yet.
+      user = await prisma.user.create({
+        data: {
+          email: normalizedEmail!,
+          role: 'owner',
+          ethAddr: wallet
+        }
+      });
+    } else {
+      if (ownerByEmail.role !== 'owner' && !isAllowlistedOwner) {
+        return res.status(403).json({ message: 'Email not registered as an owner' });
+      }
+      // Ensure the wallet is linked to this owner, while preventing conflicts.
+      if (ownerByEmail.ethAddr && ownerByEmail.ethAddr !== wallet) {
+        const walletHolder = await prisma.user.findFirst({
+          where: { ethAddr: wallet, NOT: { id: ownerByEmail.id } }
+        });
+        if (walletHolder) {
+          return res.status(409).json({ message: 'This wallet is already linked to another account' });
+        }
+      }
+      user = await prisma.user.update({
+        where: { id: ownerByEmail.id },
+        data: {
+          role: 'owner',
+          ethAddr: wallet
+        }
+      });
     }
-    user = ownerByEmail;
   } else if (!user && email) {
     user = await prisma.user.findUnique({ where: { email } });
   }
