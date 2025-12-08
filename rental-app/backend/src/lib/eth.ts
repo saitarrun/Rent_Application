@@ -13,9 +13,12 @@ type LeaseOnChainParams = {
 
 const contractsPath = path.resolve(process.cwd(), '..', 'contracts.json');
 const abiPath = path.resolve(process.cwd(), '..', 'frontend', 'src', 'abi', 'RENT.json');
+const receiptNftAbiPath = path.resolve(process.cwd(), '..', 'frontend', 'src', 'abi', 'LeaseReceiptNFT.json');
 let cachedContracts: Record<string, any> | null = null;
 let cachedAbi: ethers.InterfaceAbi | null = null;
 let cachedInterface: ethers.Interface | null = null;
+let cachedReceiptAbi: ethers.InterfaceAbi | null = null;
+let cachedReceiptInterface: ethers.Interface | null = null;
 
 async function loadAbi(): Promise<ethers.InterfaceAbi> {
   if (!cachedAbi) {
@@ -25,6 +28,16 @@ async function loadAbi(): Promise<ethers.InterfaceAbi> {
     cachedInterface = new ethers.Interface(cachedAbi as ethers.InterfaceAbi);
   }
   return cachedAbi!;
+}
+
+async function loadReceiptAbi(): Promise<ethers.InterfaceAbi> {
+  if (!cachedReceiptAbi) {
+    const raw = await fs.readFile(receiptNftAbiPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    cachedReceiptAbi = Array.isArray(parsed) ? parsed : parsed.abi ?? parsed;
+    cachedReceiptInterface = new ethers.Interface(cachedReceiptAbi as ethers.InterfaceAbi);
+  }
+  return cachedReceiptAbi!;
 }
 
 async function loadContracts(): Promise<Record<string, any>> {
@@ -53,6 +66,23 @@ async function getRentContract() {
   if (!addr) throw new Error(`RENT address missing for chain ${chainId}`);
   const abi = await loadAbi();
   return { contract: new ethers.Contract(addr, abi, signer), chainId };
+}
+
+async function getReceiptNftContract() {
+  const rpc = process.env.CHAIN_RPC_URL || 'http://127.0.0.1:8545';
+  const chainId = process.env.CHAIN_ID || '1337';
+  const addr = process.env.RECEIPT_NFT_ADDRESS;
+  const minterKey = process.env.LEASE_NFT_MINTER_PK || process.env.PRIVATE_KEY;
+  if (!addr) throw new Error('RECEIPT_NFT_ADDRESS missing');
+  if (!minterKey) throw new Error('LEASE_NFT_MINTER_PK missing');
+  const provider = new ethers.JsonRpcProvider(rpc);
+  const signer = new ethers.Wallet(minterKey, provider);
+  const abi = await loadReceiptAbi();
+  return {
+    contract: new ethers.Contract(addr, abi, signer),
+    chainId,
+    iface: cachedReceiptInterface
+  };
 }
 
 export async function createLeaseOnChain(params: LeaseOnChainParams) {
@@ -127,6 +157,45 @@ export async function signLeaseOnChain(chainLeaseId: number, tenantWallet?: stri
   const tx = await contract.signLease(BigInt(chainLeaseId));
   const receipt = await tx.wait();
   return { txHash: receipt.hash };
+}
+
+export async function mintLeaseReceipt(params: { leaseId: string | number; recipientAddress: string; metadataUri: string }) {
+  const { leaseId, recipientAddress, metadataUri } = params;
+  const normalizedRecipient = ethers.getAddress(recipientAddress);
+  const { contract, chainId, iface } = await getReceiptNftContract();
+  let anticipatedId: any = null;
+  try {
+    const fn = contract.getFunction('safeMint');
+    anticipatedId = await fn.staticCall(normalizedRecipient, metadataUri);
+  } catch {
+    anticipatedId = null;
+  }
+  const tx = await contract.safeMint(normalizedRecipient, metadataUri);
+  const receipt = await tx.wait();
+
+  let tokenId: string | null = null;
+  if (receipt?.logs && iface) {
+    for (const log of receipt.logs) {
+      try {
+        const parsed = iface.parseLog(log);
+        if (parsed?.name === 'Transfer') {
+          const id = parsed?.args?.tokenId ?? parsed?.args?.[2];
+          if (id !== undefined) {
+            tokenId = id.toString();
+            break;
+          }
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  if (!tokenId && anticipatedId !== undefined && anticipatedId !== null) {
+    tokenId = anticipatedId.toString();
+  }
+
+  return { tokenId: tokenId ?? null, txHash: receipt.hash, chainId, leaseId };
 }
 
 function parseEvent(receipt: ethers.ContractTransactionReceipt | null, eventName: string) {

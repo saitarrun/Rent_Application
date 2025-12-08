@@ -2,7 +2,15 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'CHAIN_RPC_URL', 'CHAIN_ID', 'PRIVATE_KEY'];
+const requiredEnvVars = [
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'CHAIN_RPC_URL',
+  'CHAIN_ID',
+  'PRIVATE_KEY',
+  'RECEIPT_NFT_ADDRESS',
+  'LEASE_NFT_MINTER_PK'
+];
 
 function validateEnv() {
   const missing: string[] = [];

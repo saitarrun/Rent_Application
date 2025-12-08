@@ -50,8 +50,11 @@ export default function Applications() {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => approveApplication(id),
-    onSuccess: () => {
-      pushNotice('success', 'Application approved');
+    onSuccess: (data: any) => {
+      const tokenId = data?.lease?.ownerNftTokenId;
+      const txHash = data?.nft?.txHash || data?.lease?.ownerNftTxHash;
+      const mintedMsg = tokenId ? ` — NFT #${tokenId}${txHash ? ' minted' : ''}` : '';
+      pushNotice('success', `Application approved${mintedMsg}`);
       queryClient.invalidateQueries({ queryKey: ['applications'] });
       queryClient.invalidateQueries({ queryKey: ['leases'] });
     },

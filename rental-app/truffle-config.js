@@ -1,7 +1,10 @@
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const envPath = fs.existsSync(path.join(__dirname, 'backend', '.env')) ? path.join(__dirname, 'backend', '.env') : path.join(__dirname, '.env');
+require('dotenv').config({ path: envPath });
 const HDWalletProvider = require('@truffle/hdwallet-provider');
 
-const { PRIVATE_KEY, SEPOLIA_RPC } = process.env;
+const { PRIVATE_KEY, SEPOLIA_RPC, SEPOLIA_PRIVATE_KEY } = process.env;
 
 module.exports = {
   contracts_directory: './contracts',
@@ -18,7 +21,7 @@ module.exports = {
     sepolia: {
       provider: () =>
         new HDWalletProvider({
-          privateKeys: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+          privateKeys: SEPOLIA_PRIVATE_KEY ? [SEPOLIA_PRIVATE_KEY] : PRIVATE_KEY ? [PRIVATE_KEY] : [],
           providerOrUrl: SEPOLIA_RPC,
           pollingInterval: 8000
         }),

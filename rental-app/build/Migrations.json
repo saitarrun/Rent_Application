@@ -775,7 +775,7 @@
   "sourceMap": "58:364:0:-:0;;;84:33;;;-1:-1:-1;;;;;;84:33:0;107:10;84:33;;;58:364;;;;;;;;;;;;;;;;",
   "deployedSourceMap": "58:364:0:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;123:39;;;;;;;;;160:25:4;;;148:2;133:18;123:39:0;;;;;;;;84:33;;;;;-1:-1:-1;;;;;84:33:0;;;;;;-1:-1:-1;;;;;360:32:4;;;342:51;;330:2;315:18;84:33:0;196:203:4;308:112:0;;;;;;:::i;:::-;;:::i;:::-;;;223:5;;-1:-1:-1;;;;;223:5:0;209:10;:19;201:83;;;;-1:-1:-1;;;201:83:0;;791:2:4;201:83:0;;;773:21:4;830:2;810:18;;;803:30;869:34;849:18;;;842:62;-1:-1:-1;;;920:18:4;;;913:49;979:19;;201:83:0;;;;;;;;377:24:::1;:36:::0;308:112::o;404:180:4:-;463:6;516:2;504:9;495:7;491:23;487:32;484:52;;;532:1;529;522:12;484:52;-1:-1:-1;555:23:4;;404:180;-1:-1:-1;404:180:4:o",
   "source": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24;\n\ncontract Migrations {\n    address public owner = msg.sender;\n    uint256 public last_completed_migration;\n\n    modifier restricted() {\n        require(msg.sender == owner, \"This function is restricted to the contract's owner\");\n        _;\n    }\n\n    function setCompleted(uint256 completed) public restricted {\n        last_completed_migration = completed;\n    }\n}\n",
-  "sourcePath": "/Users/csuftitan/RentalApp/rental-app/contracts/Migrations.sol",
+  "sourcePath": "/Users/csuftitan/Downloads/Rent_Application/rental-app/contracts/Migrations.sol",
   "ast": {
     "absolutePath": "project:/contracts/Migrations.sol",
     "exportedSymbols": {
@@ -1183,7 +1183,7 @@
   },
   "networks": {},
   "schemaVersion": "3.4.16",
-  "updatedAt": "2025-11-18T05:31:28.602Z",
+  "updatedAt": "2025-12-08T03:31:11.998Z",
   "networkType": "ethereum",
   "devdoc": {
     "kind": "dev",

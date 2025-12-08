@@ -86,7 +86,13 @@ export default function Payments() {
   const tenantWalletMatches =
     !isTenant || (normalizedLeaseWallet !== null && normalizedConnected !== null && normalizedLeaseWallet === normalizedConnected);
 
-  const chainLeaseId = lease.chainLeaseId || lease.id;
+  const rawChainLeaseId = lease.chainLeaseId;
+  const chainLeaseId =
+    rawChainLeaseId !== null &&
+    rawChainLeaseId !== undefined &&
+    !Number.isNaN(Number(rawChainLeaseId))
+      ? rawChainLeaseId
+      : null;
   const depositAmount = Number(lease.securityDepositEth ?? lease.depositEth ?? 0);
   const annualAmount = Number(lease.annualRentEth ?? 0);
   const invoices = lease.invoices ?? [];
@@ -108,6 +114,7 @@ export default function Payments() {
     (annualPaid ? 0 : annualAmount > 0 ? annualAmount : 0);
 
   const handleDeposit = async () => {
+    if (!chainLeaseId && chainLeaseId !== 0) throw new Error('Lease is not provisioned on-chain yet.');
     if (!depositAmount) throw new Error('Deposit amount unavailable');
     if (isTenant && !tenantWalletMatches) {
       throw new Error(
@@ -124,6 +131,7 @@ export default function Payments() {
   };
 
   const handleAnnual = async () => {
+    if (!chainLeaseId && chainLeaseId !== 0) throw new Error('Lease is not provisioned on-chain yet.');
     if (!annualAmount) throw new Error('Annual rent unavailable');
     if (isTenant && !tenantWalletMatches) {
       throw new Error(
@@ -217,15 +225,17 @@ export default function Payments() {
               <>
                 <TxButton
                   label={
-                    tenantWalletMatches
-                      ? 'Pay deposit'
-                      : normalizedLeaseWallet
-                        ? `Connect ${lease.tenantEth}`
-                        : 'Connect wallet'
+                    !chainLeaseId && chainLeaseId !== 0
+                      ? 'On-chain lease pending'
+                      : tenantWalletMatches
+                        ? 'Pay deposit'
+                        : normalizedLeaseWallet
+                          ? `Connect ${lease.tenantEth}`
+                          : 'Connect wallet'
                   }
                   onSend={handleDeposit}
                   className="w-full justify-center"
-                  disabled={depositPaid || !tenantWalletMatches}
+                  disabled={depositPaid || !tenantWalletMatches || (!chainLeaseId && chainLeaseId !== 0)}
                   aria-describedby="deposit-help"
                 />
                 {!tenantWalletMatches && (
@@ -234,6 +244,11 @@ export default function Payments() {
                   {lease.tenantEth ? lease.tenantEth : 'your lease wallet'} in MetaMask.
                 </p>
               )}
+                {!chainLeaseId && chainLeaseId !== 0 && (
+                  <p className="text-xs text-danger" role="alert">
+                    ⚠️ Lease is not provisioned on-chain yet. Please retry after the owner approves on-chain.
+                  </p>
+                )}
             </>
           ) : (
             <p className="text-sm text-muted" role="status">
@@ -268,21 +283,28 @@ export default function Payments() {
               <>
                 <TxButton
                   label={
-                    tenantWalletMatches
-                      ? 'Pay annual rent'
-                      : normalizedLeaseWallet
-                        ? `Connect ${lease.tenantEth}`
-                        : 'Connect wallet'
+                    !chainLeaseId && chainLeaseId !== 0
+                      ? 'On-chain lease pending'
+                      : tenantWalletMatches
+                        ? 'Pay annual rent'
+                        : normalizedLeaseWallet
+                          ? `Connect ${lease.tenantEth}`
+                          : 'Connect wallet'
                   }
                   onSend={handleAnnual}
                   className="w-full justify-center"
-                  disabled={annualPaid || !tenantWalletMatches}
+                  disabled={annualPaid || !tenantWalletMatches || (!chainLeaseId && chainLeaseId !== 0)}
                   aria-describedby="rent-help"
                 />
                 {!tenantWalletMatches && (
                   <p className="text-xs text-danger" role="alert">
                     ⚠️ Connected wallet does not match the lease wallet. Switch to{' '}
                     {lease.tenantEth ? lease.tenantEth : 'your lease wallet'} in MetaMask.
+                  </p>
+                )}
+                {!chainLeaseId && chainLeaseId !== 0 && (
+                  <p className="text-xs text-danger" role="alert">
+                    ⚠️ Lease is not provisioned on-chain yet. Please retry after the owner approves on-chain.
                   </p>
                 )}
               </>

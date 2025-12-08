@@ -7,6 +7,7 @@ import path from 'path';
 import authRouter from './routes/auth';
 import userRouter from './routes/users';
 import leasesRouter from './routes/leases';
+import leaseMetadataRouter from './routes/leaseMetadata';
 import propertiesRouter from './routes/properties';
 import invoicesRouter from './routes/invoices';
 import receiptsRouter from './routes/receipts';
@@ -25,6 +26,7 @@ app.use(morgan('dev'));
 app.use('/files/leases', express.static(path.join(process.cwd(), 'src', 'storage', 'leases')));
 app.use('/files/receipts', express.static(path.join(process.cwd(), 'src', 'storage', 'receipts')));
 
+app.use(leaseMetadataRouter);
 app.use('/api/auth', authRouter);
 app.use('/api', requireAuth, userRouter);
 app.use('/api/properties', requireAuth, propertiesRouter);

@@ -76,6 +76,9 @@ model Lease {
   chainLeaseId       Int?
   chainId            String?
   txHash             String?
+  ownerNftTokenId    String?
+  ownerNftTxHash     String?
+  ownerNftMetadataUri String?
   termsHash          String?
   pdfPath            String?
   ownerSignedAt      DateTime?
@@ -125,6 +128,9 @@ model Receipt {
   chainId   String
   txHash    String
   pdfPath   String?
+  nftTokenId String?
+  nftTxHash String?
+  nftMetadataUri String?
 }
 
 model Repair {

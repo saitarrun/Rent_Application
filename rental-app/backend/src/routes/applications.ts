@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Decimal } from '@prisma/client/runtime/library';
 import prisma, { ensureProfileSeed } from '../lib/prisma';
 import { requireAuth } from '../middleware/auth';
-import { createLeaseOnChain } from '../lib/eth';
+import { createLeaseOnChain, mintLeaseReceipt } from '../lib/eth';
 import { buildInvoicePayload } from '../lib/invoiceService';
 
 const router = Router();
@@ -55,6 +55,11 @@ const createSchema = z.object({
   details: detailsSchema,
   documents: z.array(documentSchema).max(5).optional()
 });
+
+function buildMetadataUri(req: any, leaseId: string) {
+  const base = process.env.NFT_METADATA_BASE_URL || `${req.protocol}://${req.get('host')}`;
+  return `${base.replace(/\/$/, '')}/leases/${leaseId}/nft-metadata.json`;
+}
 
 function serialize(app: any) {
   return {
@@ -202,7 +207,6 @@ router.patch('/:id/approve', async (req, res) => {
 
   const lease = await prisma.lease.create({
     data: {
-      id: String(chain.chainLeaseId),
       chainLeaseId: chain.chainLeaseId,
       listingId: application.listing.id,
       propertyId: propertyId!,
@@ -248,6 +252,29 @@ router.patch('/:id/approve', async (req, res) => {
     }
   });
 
+  const metadataUri = buildMetadataUri(req, lease.id);
+  let nft;
+  try {
+    nft = await mintLeaseReceipt({
+      leaseId: lease.id,
+      recipientAddress: auth.ethAddr,
+      metadataUri
+    });
+  } catch (err) {
+    console.error('Lease receipt NFT mint failed', err);
+    return res.status(500).json({ message: 'Unable to mint lease receipt NFT' });
+  }
+
+  const leaseWithNft = await prisma.lease.update({
+    where: { id: lease.id },
+    data: {
+      ownerNftTokenId: nft?.tokenId ?? null,
+      ownerNftTxHash: nft?.txHash ?? null,
+      ownerNftMetadataUri: metadataUri
+    },
+    include: { property: true, listing: true, invoices: true, repairs: true, receipts: true, tenant: true, owner: true }
+  });
+
   await prisma.listing.update({
     where: { id: application.listing.id },
     data: { propertyId, available: false }
@@ -267,9 +294,12 @@ router.patch('/:id/approve', async (req, res) => {
     tenantId: tenant.id
   });
 
+  const leasePayload = { ...leaseWithNft, ownerNftContract: process.env.RECEIPT_NFT_ADDRESS || null };
+
   res.json({
     application: serialize(updatedApplication),
-    lease
+    lease: leasePayload,
+    nft: nft || null
   });
 });
 

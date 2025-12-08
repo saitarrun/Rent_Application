@@ -1,8 +1,10 @@
+require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const RENT = artifacts.require("RENT");
 const Payments = artifacts.require("Payments");
 const Repairs = artifacts.require("Repairs");
+const LeaseReceiptNFT = artifacts.require("LeaseReceiptNFT");
 
 function loadConfig(configPath) {
   if (!fs.existsSync(configPath)) {
@@ -21,7 +23,7 @@ function persistConfig(configPath, config) {
   console.log(`Contracts written to ${configPath}`);
 }
 
-module.exports = async function (deployer, network) {
+module.exports = async function (deployer, network, accounts) {
   await deployer.deploy(RENT);
   const rent = await RENT.deployed();
 
@@ -30,6 +32,11 @@ module.exports = async function (deployer, network) {
 
   await deployer.deploy(Repairs, rent.address);
   const repairs = await Repairs.deployed();
+
+  const configuredMinter = process.env.LEASE_NFT_MINTER_ADDRESS || process.env.DEPLOYER_ADDRESS;
+  const minter = configuredMinter || (accounts && accounts.length ? accounts[0] : null);
+  await deployer.deploy(LeaseReceiptNFT, minter);
+  const receiptNft = await LeaseReceiptNFT.deployed();
 
   const netId = await web3.eth.net.getId();
   const configPath = path.resolve(__dirname, "..", "contracts.json");
@@ -46,7 +53,8 @@ module.exports = async function (deployer, network) {
     ...config[netId],
     RENT: rent.address,
     Payments: payments.address,
-    Repairs: repairs.address
+    Repairs: repairs.address,
+    LeaseReceiptNFT: receiptNft.address
   };
 
   persistConfig(configPath, config);

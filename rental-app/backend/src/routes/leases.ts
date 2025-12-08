@@ -6,7 +6,7 @@ import prisma, { ensureProfileSeed } from '../lib/prisma';
 import { buildInvoicePayload } from '../lib/invoiceService';
 import { persistPdf } from '../lib/pdf';
 import { sendMail } from '../lib/mailer';
-import { closeLeaseOnChain, signLeaseOnChain } from '../lib/eth';
+import { closeLeaseOnChain, signLeaseOnChain, mintLeaseReceipt } from '../lib/eth';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -43,6 +43,9 @@ async function recordSimpleReceipt(options: {
   invoiceId: string;
   amount: Decimal | number | string;
   txHash: string;
+  metadataBase?: string;
+  shouldMintNft?: boolean;
+  req?: any;
 }) {
   const { lease, invoiceId, amount, txHash } = options;
   const amountDecimal = amount instanceof Decimal ? amount : new Decimal(amount);
@@ -71,7 +74,7 @@ async function recordSimpleReceipt(options: {
     }
   });
 
-  await prisma.receipt.upsert({
+  const receipt = await prisma.receipt.upsert({
     where: { invoiceId },
     update: {
       paidEth: amountDecimal,
@@ -88,6 +91,33 @@ async function recordSimpleReceipt(options: {
       txHash
     }
   });
+
+  if (options.shouldMintNft && !receipt.nftTokenId) {
+    const tenantAddr = lease.tenantEth;
+    if (tenantAddr) {
+      const base = options.metadataBase || `${options.req?.protocol}://${options.req?.get('host')}`;
+      const metadataUri = `${(base || '').replace(/\/$/, '')}/receipts/${receipt.id}/nft-metadata.json`;
+      try {
+        const nft = await mintLeaseReceipt({
+          leaseId: lease.id,
+          recipientAddress: tenantAddr,
+          metadataUri
+        });
+        await prisma.receipt.update({
+          where: { id: receipt.id },
+          data: {
+            nftTokenId: nft.tokenId ?? null,
+            nftTxHash: nft.txHash ?? null,
+            nftMetadataUri: metadataUri
+          }
+        });
+      } catch (err) {
+        console.error('Receipt NFT mint failed', { invoiceId, leaseId: lease.id, err });
+      }
+    }
+  }
+
+  return prisma.receipt.findUnique({ where: { id: receipt.id } });
 }
 
 function leaseInclude() {
@@ -165,7 +195,13 @@ router.get('/', async (req, res) => {
       include: leaseInclude()
     });
   }
-  res.json(leases);
+  const receiptNftAddress = process.env.RECEIPT_NFT_ADDRESS || null;
+  const payload = leases.map((lease) => ({
+    ...lease,
+    ownerNftContract: receiptNftAddress,
+    receipts: (lease.receipts || []).map((r: any) => ({ ...r, nftContract: receiptNftAddress }))
+  }));
+  res.json(payload);
 });
 
 router.get('/:id', async (req, res) => {
@@ -178,7 +214,9 @@ router.get('/:id', async (req, res) => {
   if (auth.userId !== lease.ownerId && auth.userId !== lease.tenantId) {
     return res.status(403).json({ message: 'Forbidden' });
   }
-  res.json(lease);
+  const receiptNftAddress = process.env.RECEIPT_NFT_ADDRESS || null;
+  const receiptsWithContract = (lease.receipts || []).map((r: any) => ({ ...r, nftContract: receiptNftAddress }));
+  res.json({ ...lease, ownerNftContract: receiptNftAddress, receipts: receiptsWithContract });
 });
 
 router.post('/', async (req, res) => {
@@ -364,7 +402,9 @@ router.post('/:id/pay/deposit', async (req, res) => {
     lease,
     invoiceId: `deposit-${lease.id}`,
     amount: lease.securityDepositEth,
-    txHash: parsed.data.txHash
+    txHash: parsed.data.txHash,
+    shouldMintNft: true,
+    req
   });
 
   const updated = await prisma.lease.update({
@@ -401,7 +441,9 @@ router.post('/:id/pay/annual', async (req, res) => {
     lease,
     invoiceId: `annual-${lease.id}-${Date.now()}`,
     amount: lease.annualRentEth,
-    txHash: parsed.data.txHash
+    txHash: parsed.data.txHash,
+    shouldMintNft: true,
+    req
   });
 
   const updated = await prisma.lease.update({
