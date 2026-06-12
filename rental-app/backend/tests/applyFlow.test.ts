@@ -4,6 +4,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 
 vi.mock('../src/lib/eth', () => ({
   createLeaseOnChain: vi.fn().mockResolvedValue({ chainLeaseId: 101, chainId: '1337', txHash: '0xchain' }),
+  mintLeaseReceipt: vi.fn().mockResolvedValue({ tokenId: '1', txHash: '0xmint', chainId: '1337', leaseId: 'lease1' }),
   requestRepairOnChain: vi.fn(),
   setRepairStatusOnChain: vi.fn(),
   signLeaseOnChain: vi.fn()
