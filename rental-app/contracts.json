@@ -9,7 +9,7 @@
   },
   "11155111": {
     "chainLabel": "Sepolia",
-    "rpcUrl": "https://mainnet.infura.io/v3/***REMOVED***",
+    "rpcUrl": "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID",
     "RENT": "0x0000000000000000000000000000000000002000",
     "Payments": "0x0000000000000000000000000000000000002001",
     "Repairs": "0x0000000000000000000000000000000000002002"
